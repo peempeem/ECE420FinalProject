@@ -43,6 +43,8 @@ public class MainActivity extends AppCompatActivity {
     private ExecutorService analysisExecutor = null;
     private ImageView viewFinder;
 
+    private boolean cppInitialized = false;
+    private native void initCPP(int width, int height);
     private native void processImage(Bitmap bitmap);
 
     @Override
@@ -101,8 +103,12 @@ public class MainActivity extends AppCompatActivity {
         analysisExecutor = Executors.newSingleThreadExecutor();
         imageAnalysis.setAnalyzer(analysisExecutor, imageProxy -> {
 
-            long start = System.nanoTime();
             Bitmap bitmap = imageProxy.toBitmap();
+//            if (!cppInitialized)
+//            {
+//                initCPP(bitmap.getWidth(), bitmap.getHeight());
+//                cppInitialized = true;
+//            }
             processImage(bitmap);
 
             runOnUiThread(new Runnable() {

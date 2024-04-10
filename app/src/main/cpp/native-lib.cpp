@@ -8,8 +8,6 @@
 const char* TAG = "C++";
 #define LOGD(tag, message, ...) ((void)__android_log_print(ANDROID_LOG_DEBUG, tag, message, ##__VA_ARGS__))
 
-
-
 void processImage(cv::Mat& img)
 {
     auto start = std::chrono::high_resolution_clock::now();
@@ -34,6 +32,14 @@ void processImage(cv::Mat& img)
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     LOGD(TAG, "Processing Time: %lld", duration.count());
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_example_ece420finalproject_MainActivity_initCPP(JNIEnv* env, jobject ob, jint jWidth, int jHeight)
+{
+//    unsigned width = (unsigned) jWidth;
+//    unsigned height = (unsigned) jHeight;
 }
 
 extern "C"
