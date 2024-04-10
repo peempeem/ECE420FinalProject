@@ -8,6 +8,8 @@
 const char* TAG = "C++";
 #define LOGD(tag, message, ...) ((void)__android_log_print(ANDROID_LOG_DEBUG, tag, message, ##__VA_ARGS__))
 
+
+
 void processImage(cv::Mat& img)
 {
     auto start = std::chrono::high_resolution_clock::now();
@@ -16,15 +18,14 @@ void processImage(cv::Mat& img)
     //////// Start of Implementation ////////
     /////////////////////////////////////////
 
-    cv::Mat gray;
-    cv::cvtColor(img, gray, cv::COLOR_RGBA2GRAY);
+    static cv::Mat gray;
+    static cv::Mat edges;
+    static cv::Mat edges3;
 
-    cv::Mat edges;
+    cv::cvtColor(img, gray, cv::COLOR_BGRA2GRAY);
     cv::Canny(gray, edges, 100, 10000, 7, true);
-
-    cv::Mat edges4;
-    cv::cvtColor(edges, edges4, cv::COLOR_GRAY2RGBA);
-    img += edges4;
+    cv::cvtColor(edges, edges3, cv::COLOR_GRAY2BGRA);
+    img += edges3;
 
     /////////////////////////////////////////
     ///////// End of Implementation /////////
@@ -32,11 +33,11 @@ void processImage(cv::Mat& img)
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    LOGD(TAG, "Elapsed Time: %lld", duration.count());
+    LOGD(TAG, "Processing Time: %lld", duration.count());
 }
 
 extern "C"
-JNIEXPORT jobject JNICALL
+JNIEXPORT void JNICALL
 Java_com_example_ece420finalproject_MainActivity_processImage(JNIEnv* env, jobject ob, jobject bitmap)
 {
     AndroidBitmapInfo info;
@@ -45,13 +46,12 @@ Java_com_example_ece420finalproject_MainActivity_processImage(JNIEnv* env, jobje
     if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888)
     {
         LOGD(TAG, "Bitmap format is not RGBA_8888!");
-        return bitmap;
+        return;
     }
 
     void* pixels;
     AndroidBitmap_lockPixels(env, bitmap, &pixels);
-    cv::Mat mrgba(info.height, info.width, CV_8UC4, pixels);
-    processImage(mrgba);
+    cv::Mat img(info.height, info.width, CV_8UC4, pixels);
+    processImage(img);
     AndroidBitmap_unlockPixels(env, bitmap);
-    return bitmap;
 }

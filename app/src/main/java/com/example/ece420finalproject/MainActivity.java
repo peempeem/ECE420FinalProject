@@ -17,6 +17,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.resolutionselector.AspectRatioStrategy;
+import androidx.camera.core.resolutionselector.ResolutionSelector;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -27,6 +29,7 @@ import androidx.lifecycle.LifecycleOwner;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private ExecutorService analysisExecutor = null;
     private ImageView viewFinder;
 
-    private native Bitmap processImage(Bitmap bitmap);
+    private native void processImage(Bitmap bitmap);
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -59,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         viewFinder = findViewById(R.id.viewFinder);
-        viewFinder.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        viewFinder.setScaleType(ImageView.ScaleType.FIT_START);
         viewFinder.setBackgroundColor(getResources().getColor(android.R.color.black));
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -92,12 +95,16 @@ public class MainActivity extends AppCompatActivity {
         ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setTargetResolution(new Size(1280, 720))
+                .setTargetResolution(new Size(960, 720))
                 .build();
 
         analysisExecutor = Executors.newSingleThreadExecutor();
         imageAnalysis.setAnalyzer(analysisExecutor, imageProxy -> {
-            Bitmap bitmap = processImage(imageProxy.toBitmap());
+
+            long start = System.nanoTime();
+            Bitmap bitmap = imageProxy.toBitmap();
+            processImage(bitmap);
+
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
