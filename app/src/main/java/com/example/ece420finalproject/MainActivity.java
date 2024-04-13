@@ -43,25 +43,31 @@ public class MainActivity extends AppCompatActivity {
     private ExecutorService analysisExecutor = null;
     private ImageView viewFinder;
 
-    private boolean cppInitialized = false;
-    private native void initCPP(int width, int height);
+    private native void initCPP();
+    private native void pauseCPP();
+    private native void resumeCPP();
+    private native void endCPP();
     private native void processImage(Bitmap bitmap);
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        initCPP();
         setContentView(R.layout.activity_main);
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
             ActivityCompat.requestPermissions(MainActivity.this, new String[] { Manifest.permission.CAMERA }, 101);
 
-        if (OpenCVLoader.initLocal())
-            Log.d(TAG, "OpenCV loaded successfully");
-        else {
-            Log.e(TAG, "OpenCV initialization failed!");
-            (Toast.makeText(this, "OpenCV initialization failed!", Toast.LENGTH_LONG)).show();
-            return;
-        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+            ActivityCompat.requestPermissions(MainActivity.this, new String[] { Manifest.permission.RECORD_AUDIO }, 101);
+
+//        if (OpenCVLoader.initLocal())
+//            Log.d(TAG, "OpenCV loaded successfully");
+//        else {
+//            Log.e(TAG, "OpenCV initialization failed!");
+//            (Toast.makeText(this, "OpenCV initialization failed!", Toast.LENGTH_LONG)).show();
+//            return;
+//        }
 
         viewFinder = findViewById(R.id.viewFinder);
         viewFinder.setScaleType(ImageView.ScaleType.FIT_START);
@@ -104,11 +110,6 @@ public class MainActivity extends AppCompatActivity {
         imageAnalysis.setAnalyzer(analysisExecutor, imageProxy -> {
 
             Bitmap bitmap = imageProxy.toBitmap();
-//            if (!cppInitialized)
-//            {
-//                initCPP(bitmap.getWidth(), bitmap.getHeight());
-//                cppInitialized = true;
-//            }
             processImage(bitmap);
 
             runOnUiThread(new Runnable() {
@@ -126,11 +127,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onPause() {
         super.onPause();
+        pauseCPP();
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        resumeCPP();
     }
 
     @Override
@@ -138,5 +141,6 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         if (analysisExecutor != null)
             analysisExecutor.shutdown();
+        endCPP();
     }
 }

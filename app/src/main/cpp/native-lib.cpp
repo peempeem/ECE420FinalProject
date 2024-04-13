@@ -1,16 +1,20 @@
 #include <jni.h>
 #include <android/bitmap.h>
-#include <android/log.h>
+
+
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <aaudio/AAudio.h>
+
 #include <chrono>
 
-const char* TAG = "C++";
-#define LOGD(tag, message, ...) ((void)__android_log_print(ANDROID_LOG_DEBUG, tag, message, ##__VA_ARGS__))
+#include "src/util/log.h"
+#include "src/audio/audio.h"
+
 
 void processImage(cv::Mat& img)
 {
-    auto start = std::chrono::high_resolution_clock::now();
+    //auto start = std::chrono::high_resolution_clock::now();
 
     /////////////////////////////////////////
     //////// Start of Implementation ////////
@@ -29,17 +33,37 @@ void processImage(cv::Mat& img)
     ///////// End of Implementation /////////
     /////////////////////////////////////////
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    LOGD(TAG, "Processing Time: %lld", duration.count());
+    //auto end = std::chrono::high_resolution_clock::now();
+    //auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    //LOGD(TAG, "Processing Time: %lld", duration.count());
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_example_ece420finalproject_MainActivity_initCPP(JNIEnv* env, jobject ob, jint jWidth, int jHeight)
+Java_com_example_ece420finalproject_MainActivity_initCPP(JNIEnv* env, jobject ob)
 {
-//    unsigned width = (unsigned) jWidth;
-//    unsigned height = (unsigned) jHeight;
+    AudioAnalyzer::init();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_example_ece420finalproject_MainActivity_pauseCPP(JNIEnv* env, jobject ob)
+{
+    AudioAnalyzer::pause();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_example_ece420finalproject_MainActivity_resumeCPP(JNIEnv* env, jobject ob)
+{
+    AudioAnalyzer::resume();
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_example_ece420finalproject_MainActivity_endCPP(JNIEnv* env, jobject ob)
+{
+    AudioAnalyzer::deinit();
 }
 
 extern "C"
