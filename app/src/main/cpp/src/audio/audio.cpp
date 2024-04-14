@@ -1,11 +1,13 @@
 #include "audio.h"
 #include <aaudio/AAudio.h>
+#include <mutex>
 #include "../../kiss_fft/kiss_fft.h"
 #include "../util/log.h"
+#include "note.h"
 
 #define AUDIO_SAMPLING_RATE 48000
-#define AUDIO_SAMPLES_PER_BUFFER 1024
-#define KFFT_SIZE AUDIO_SAMPLES_PER_BUFFER * 2
+#define AUDIO_SAMPLES_PER_BUFFER 1024 * 4
+#define KFFT_SIZE AUDIO_SAMPLES_PER_BUFFER * 8
 #define PEAK_VALUES 3
 
 unsigned audioInSize = 0;
@@ -13,8 +15,12 @@ float audioIn[AUDIO_SAMPLES_PER_BUFFER];
 kiss_fft_cfg kissFFTConfig;
 kiss_fft_cfg kissIFFTConfig;
 float noiseThreshold = 1e2 * AUDIO_SAMPLES_PER_BUFFER;
-
 AAudioStream* audioStream = NULL;
+std::mutex fftMtx;
+std::mutex autoCorrMtx;
+kiss_fft_cpx buf1[KFFT_SIZE];
+kiss_fft_cpx fftBuf[KFFT_SIZE];
+kiss_fft_cpx autoCorrBuf[KFFT_SIZE];
 
 typedef aaudio_data_callback_result_t(*AAudioStream_dataCallback)(
         AAudioStream *stream,
@@ -31,10 +37,7 @@ void processBuffer()
     if (energy < noiseThreshold)
         return;
 
-    kiss_fft_cpx buf1[KFFT_SIZE];
-    kiss_fft_cpx buf2[KFFT_SIZE];
-
-    // copy audio data into kfft buffer
+    // copy audio data into buf1
     for (unsigned i = 0; i < AUDIO_SAMPLES_PER_BUFFER; ++i)
         buf1[i] = kiss_fft_cpx{ .r=audioIn[i], .i=0 };
 
@@ -42,15 +45,18 @@ void processBuffer()
     for (unsigned i = AUDIO_SAMPLES_PER_BUFFER; i < KFFT_SIZE; ++i)
         buf1[i] = kiss_fft_cpx{ .r=0, .i=0 };
 
-    // buf2 = fft(buf1)
-    kiss_fft(kissFFTConfig, buf1, buf2);
+    // fftBuf = fft(inBuf)
+    fftMtx.lock();
+    kiss_fft(kissFFTConfig, buf1, fftBuf);
+    fftMtx.unlock();
 
-    // buf2 = buf1 * conj(buf1)
+    // buf1 = fftBuf * conj(fftBuf)
     for (unsigned i = 0; i < KFFT_SIZE; ++i)
-        buf1[i] = kiss_fft_cpx{ .r=buf2[i].r * buf2[i].r, .i=buf2[i].i * -buf2[i].i };
+        buf1[i] = kiss_fft_cpx{ .r=fftBuf[i].r * fftBuf[i].r, .i=fftBuf[i].i * -fftBuf[i].i };
 
     // buf2 = ifft(buf1)
-    kiss_fft(kissIFFTConfig, buf1, buf2);
+    autoCorrMtx.lock();
+    kiss_fft(kissIFFTConfig, buf1, autoCorrBuf);
 
     // use peak detection algorithm
     int peak = -1;
@@ -58,7 +64,7 @@ void processBuffer()
     {
         bool isMax = true;
         for (unsigned j = 1; j <= PEAK_VALUES; ++j) {
-            if (buf2[i].r <= buf2[i - j].r || buf2[i].r <= buf2[i + j].r)
+            if (autoCorrBuf[i].r <= autoCorrBuf[i - j].r || autoCorrBuf[i].r <= autoCorrBuf[i + j].r)
             {
                 isMax = false;
                 break;
@@ -69,12 +75,17 @@ void processBuffer()
         {
             if (peak == -1)
                 peak = i;
-            else if (buf2[i].r > buf2[peak].r)
+            else if (autoCorrBuf[i].r > autoCorrBuf[peak].r)
                 peak = i;
         }
     }
+    autoCorrMtx.unlock();
 
-    LOGD(TAG, "freq: %f, %f", AUDIO_SAMPLING_RATE / (float) peak, energy);
+    float frequency = AUDIO_SAMPLING_RATE / (float) peak;
+    const MusicNote::Data* note = musicNote.fromFrequency(frequency);
+    if (!note)
+        return;
+    LOGD(TAG, "%d: %f, %s, %f", peak, frequency, note->name, note->frequency);
 }
 
 aaudio_data_callback_result_t inputAudioDataCallback(
@@ -160,4 +171,22 @@ void AudioAnalyzer::deinit()
         kiss_fft_free(kissFFTConfig);
         kiss_fft_free(kissIFFTConfig);
     }
+}
+
+void AudioAnalyzer::getFFT(std::vector<float>& fft)
+{
+    fft.reserve(KFFT_SIZE);
+    fftMtx.lock();
+    for (unsigned i = 0; i < KFFT_SIZE; ++i)
+        fft.emplace_back(fftBuf[i].r);
+    fftMtx.unlock();
+}
+
+void AudioAnalyzer::getAutoCorrelation(std::vector<float>& autoCorr)
+{
+    autoCorr.reserve(KFFT_SIZE);
+    autoCorrMtx.lock();
+    for (unsigned i = 0; i < KFFT_SIZE; ++i)
+        autoCorr.emplace_back(autoCorrBuf[i].r);
+    autoCorrMtx.unlock();
 }

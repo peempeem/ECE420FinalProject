@@ -48,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private native void resumeCPP();
     private native void endCPP();
     private native void processImage(Bitmap bitmap);
+    private native void audioStats(Bitmap bitmap);
 
     @Override
     public void onCreate(Bundle savedInstanceState) {

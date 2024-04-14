@@ -7,8 +7,10 @@ include_directories(src/main/cpp/include/)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
         native-lib.cpp
-        ./src/audio/audio.cpp
-        ./kiss_fft/kiss_fft.c)
+        src/image/image.cpp
+        src/audio/audio.cpp
+        src/audio/note.cpp
+        kiss_fft/kiss_fft.c)
 
 file(GLOB_RECURSE SOURCES "./src/**.cpp")
 
