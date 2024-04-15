@@ -98,3 +98,53 @@ void scan(cv::Mat& img,
         }
     }
 }
+
+int ddpeaks(std::vector<std::vector<float>>& array,
+             std::vector<std::vector<int>>& peaks,
+             int threshold, float spacing, int cols, int rows)
+{
+    int rightbound;
+    int leftbound;
+    int topbound;
+    int bottombound;
+    int areamax;
+    int peakidx = 0;
+
+    for(int j = 1; j<cols-1; j++){
+        for(int i = 1; i<rows-1; i++){
+            if(array[i][j]>threshold){
+                topbound = (int)(i-spacing*1.3f);
+                bottombound = (int)(i+spacing*1.3f);
+                leftbound=(int)(j-spacing*1.3f);
+                rightbound=(int)(j+spacing*1.3f);
+
+                if(leftbound<3)
+                    leftbound=3;
+                if(rightbound>cols-3)
+                    rightbound=cols-3;
+                if(topbound<3)
+                    topbound=3;
+                if(bottombound>rows-3)
+                    bottombound=rows-3;
+
+                areamax=0;
+
+                for(int l = leftbound; l<rightbound; l++){
+                    for(int m = topbound; m<bottombound; m++){
+                        if(array[m][l]>areamax)
+                            areamax=array[m][l];
+                    }
+                }
+
+                if (array[i][j]==areamax){
+                    peaks[peakidx][0]=i;
+                    peaks[peakidx][1]=j;
+                    peakidx+=1;
+                    array[i][j]+=1;
+                }
+
+            }
+        }
+    }
+    return peakidx;
+}
