@@ -27,6 +27,11 @@ void ImageAnalysis::processImage(cv::Mat& img)
     //LOGD(TAG, "Processing Time: %lld", duration.count());
 }
 
+void ImageAnalysis::accumulator(cv::Mat& img)
+{
+
+}
+
 void ImageAnalysis::audioStats(cv::Mat& img)
 {
     std::vector<float> fft;

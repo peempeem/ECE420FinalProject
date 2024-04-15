@@ -59,12 +59,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private DisplayState displayState = DisplayState.PREROLLING;
+    private boolean processed = false;
 
     private native void initCPP();
     private native void pauseCPP();
     private native void resumeCPP();
     private native void endCPP();
     private native void processImage(Bitmap bitmap);
+    private native void accumulator(Bitmap bitmap);
     private native void audioStats(Bitmap bitmap);
 
     @Override
@@ -73,19 +75,9 @@ public class MainActivity extends AppCompatActivity {
         initCPP();
         setContentView(R.layout.activity_main);
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
-            ActivityCompat.requestPermissions(MainActivity.this, new String[] { Manifest.permission.CAMERA }, 101);
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-            ActivityCompat.requestPermissions(MainActivity.this, new String[] { Manifest.permission.RECORD_AUDIO }, 101);
-
-//        if (OpenCVLoader.initLocal())
-//            Log.d(TAG, "OpenCV loaded successfully");
-//        else {
-//            Log.e(TAG, "OpenCV initialization failed!");
-//            (Toast.makeText(this, "OpenCV initialization failed!", Toast.LENGTH_LONG)).show();
-//            return;
-//        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+            ActivityCompat.requestPermissions(MainActivity.this, new String[] { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO }, 101);
 
         viewFinder = findViewById(R.id.viewFinder);
         viewFinder.setScaleType(ImageView.ScaleType.FIT_START);
@@ -97,14 +89,26 @@ public class MainActivity extends AppCompatActivity {
         showAudioStats = findViewById(R.id.showAudioStats);
 
         capture.setOnClickListener(new View.OnClickListener() {
-
             @Override
             public void onClick(View v) {
                 if (displayState == DisplayState.PREROLLING)
                     displayState = DisplayState.CAPTURED1;
                 else
                     displayState = DisplayState.PREROLLING;
-                Log.d("STAte", ""+displayState);
+            }
+        });
+
+        showAccumulator.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                displayState = DisplayState.ACCUMULATOR;
+            }
+        });
+
+        showAudioStats.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                displayState = DisplayState.AUDIOSTATS;
             }
         });
 
@@ -144,28 +148,61 @@ public class MainActivity extends AppCompatActivity {
         analysisExecutor = Executors.newSingleThreadExecutor();
         imageAnalysis.setAnalyzer(analysisExecutor, imageProxy -> {
 
-            if (displayState != DisplayState.PREROLLING && displayState != DisplayState.CAPTURED1) {
-                imageProxy.close();
-                return;
+            Bitmap bitmap;
+
+            switch (displayState)
+            {
+                case PREROLLING:
+                    bitmap = imageProxy.toBitmap();
+                    break;
+
+                case CAPTURED1:
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            capture.setText("Processing");
+                            capture.setEnabled(false);
+                        }
+                    });
+
+                    bitmap = imageProxy.toBitmap();
+                    processImage(bitmap);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            processed = true;
+                            displayState = DisplayState.CAPTURED2;
+                            capture.setText("Retake Photo");
+                            capture.setEnabled(true);
+                        }
+                    });
+                    break;
+
+                case ACCUMULATOR:
+                    bitmap = Bitmap.createBitmap(imageProxy.getWidth(), imageProxy.getHeight(), Bitmap.Config.ARGB_8888);
+                    accumulator(bitmap);
+                    break;
+
+                case AUDIOSTATS:
+                    bitmap = Bitmap.createBitmap(imageProxy.getWidth(), imageProxy.getHeight(), Bitmap.Config.ARGB_8888);
+                    audioStats(bitmap);
+                    break;
+
+                default:
+                    imageProxy.close();
+                    return;
             }
-
-            Bitmap bitmap = imageProxy.toBitmap();
-
-            if (displayState == DisplayState.CAPTURED1)
-                processImage(bitmap);
 
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    if (displayState == DisplayState.CAPTURED1)
-                        displayState = DisplayState.CAPTURED2;
                     viewFinder.setImageBitmap(bitmap);
                 }
             });
             imageProxy.close();
         });
 
-        cameraProvider.bindToLifecycle((LifecycleOwner) this, cameraSelector, imageAnalysis);
+        cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis);
     }
 
     @Override

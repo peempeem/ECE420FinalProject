@@ -57,6 +57,26 @@ Java_com_example_ece420finalproject_MainActivity_processImage(JNIEnv* env, jobje
 
 extern "C"
 JNIEXPORT void JNICALL
+Java_com_example_ece420finalproject_MainActivity_accumulator(JNIEnv* env, jobject ob, jobject bitmap)
+{
+    AndroidBitmapInfo info;
+    AndroidBitmap_getInfo(env, bitmap, &info);
+
+    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888)
+    {
+        LOGD(TAG, "Bitmap format is not RGBA_8888!");
+        return;
+    }
+
+    void* pixels;
+    AndroidBitmap_lockPixels(env, bitmap, &pixels);
+    cv::Mat img(info.height, info.width, CV_8UC4, pixels);
+    ImageAnalysis::accumulator(img);
+    AndroidBitmap_unlockPixels(env, bitmap);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
 Java_com_example_ece420finalproject_MainActivity_audioStats(JNIEnv* env, jobject ob, jobject bitmap)
 {
     AndroidBitmapInfo info;
