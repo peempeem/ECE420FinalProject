@@ -13,3 +13,6 @@ void scan(cv::Mat& img,
           std::vector<std::vector<float>>& rtablenotesharp,
           std::vector<std::vector<float>>& rtableflat,
           float spacing);
+int ddpeaks(std::vector<std::vector<float>>& array,
+             std::vector<std::vector<int>>& peaks,
+             int threshold, float spacing, int cols, int rows);
