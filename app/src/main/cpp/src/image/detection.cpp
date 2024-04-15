@@ -1,4 +1,5 @@
 #include "detection.h"
+#include "math.h"
 
 void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& grad)
 {
@@ -45,13 +46,13 @@ void train(cv::Mat& img, int threshold, std::vector<std::vector<float>>& rtable)
             gradient_mag=pow(pow(traingrad[i][j][0],2)+pow(traingrad[i][j][1],2),0.5);
             if (gradient_mag>threshold){
                 if(traingrad[i][j][0]>=0 && traingrad[i][j][1]>0)
-                    direction=atan(traingrad[i][j][0]/traingrad[i][j][1])/PI*180;
+                    direction=atan(traingrad[i][j][0]/traingrad[i][j][1])/M_PI*180;
                 else if(traingrad[i][j][0]>=0 && traingrad[i][j][1]<0)
-                    direction=atan(-traingrad[i][j][0]/traingrad[i][j][1])/PI*180+90;
+                    direction=atan(-traingrad[i][j][0]/traingrad[i][j][1])/M_PI*180+90;
                 else if(traingrad[i][j][0]<0 && traingrad[i][j][1]<0)
-                    direction=atan(traingrad[i][j][0]/traingrad[i][j][1])/PI*180+180;
+                    direction=atan(traingrad[i][j][0]/traingrad[i][j][1])/M_PI*180+180;
                 else if(traingrad[i][j][0]<0 && traingrad[i][j][1]>0)
-                    direction=atan(-traingrad[i][j][0]/traingrad[i][j][1])/PI*180+270;
+                    direction=atan(-traingrad[i][j][0]/traingrad[i][j][1])/M_PI*180+270;
                 else if(traingrad[i][j][1]==0 && traingrad[i][j][0]>0)
                     direction = 90;
                 else

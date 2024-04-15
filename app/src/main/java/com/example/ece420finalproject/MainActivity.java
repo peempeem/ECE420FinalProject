@@ -9,8 +9,11 @@ import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Size;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.SeekBar;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -42,6 +45,20 @@ public class MainActivity extends AppCompatActivity {
 
     private ExecutorService analysisExecutor = null;
     private ImageView viewFinder;
+    private SeekBar transpose;
+    private Button capture;
+    private Button showAccumulator;
+    private Button showAudioStats;
+
+    private enum DisplayState {
+        PREROLLING,
+        CAPTURED1,
+        CAPTURED2,
+        ACCUMULATOR,
+        AUDIOSTATS
+    }
+
+    private DisplayState displayState = DisplayState.PREROLLING;
 
     private native void initCPP();
     private native void pauseCPP();
@@ -73,6 +90,23 @@ public class MainActivity extends AppCompatActivity {
         viewFinder = findViewById(R.id.viewFinder);
         viewFinder.setScaleType(ImageView.ScaleType.FIT_START);
         viewFinder.setBackgroundColor(getResources().getColor(android.R.color.black));
+
+        transpose = findViewById(R.id.transpose);
+        capture = findViewById(R.id.captureButton);
+        showAccumulator = findViewById(R.id.showAccumulator);
+        showAudioStats = findViewById(R.id.showAudioStats);
+
+        capture.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+            public void onClick(View v) {
+                if (displayState == DisplayState.PREROLLING)
+                    displayState = DisplayState.CAPTURED1;
+                else
+                    displayState = DisplayState.PREROLLING;
+                Log.d("STAte", ""+displayState);
+            }
+        });
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         WindowInsetsControllerCompat windowInsetsController = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
@@ -110,12 +144,21 @@ public class MainActivity extends AppCompatActivity {
         analysisExecutor = Executors.newSingleThreadExecutor();
         imageAnalysis.setAnalyzer(analysisExecutor, imageProxy -> {
 
+            if (displayState != DisplayState.PREROLLING && displayState != DisplayState.CAPTURED1) {
+                imageProxy.close();
+                return;
+            }
+
             Bitmap bitmap = imageProxy.toBitmap();
-            processImage(bitmap);
+
+            if (displayState == DisplayState.CAPTURED1)
+                processImage(bitmap);
 
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
+                    if (displayState == DisplayState.CAPTURED1)
+                        displayState = DisplayState.CAPTURED2;
                     viewFinder.setImageBitmap(bitmap);
                 }
             });

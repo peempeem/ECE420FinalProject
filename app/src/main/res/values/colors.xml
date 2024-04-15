@@ -8,7 +8,10 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="red">#FFFF0000</color>
-    <color name="seek_bar_background">#ababab</color>
-    <color name="seek_bar_progress">#ffb600</color>
+    <color name="seek_bar_background">#ABABAB</color>
+    <color name="seek_bar_progress">#FFB600</color>
     <color name="seek_bar_secondary_progress">#3399CC</color>
+    <color name="sunset_purple">#FFA61F82</color>
+    <color name="sunset_orange">#FFFA5F55</color>
+
 </resources>

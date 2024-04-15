@@ -6,8 +6,8 @@
 #include "note.h"
 
 #define AUDIO_SAMPLING_RATE 48000
-#define AUDIO_SAMPLES_PER_BUFFER 1024 * 4
-#define KFFT_SIZE AUDIO_SAMPLES_PER_BUFFER * 8
+#define AUDIO_SAMPLES_PER_BUFFER 1024 * 8
+#define KFFT_SIZE AUDIO_SAMPLES_PER_BUFFER * 2
 #define PEAK_VALUES 3
 
 unsigned audioInSize = 0;

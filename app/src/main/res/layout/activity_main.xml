@@ -65,7 +65,7 @@
         </GridLayout>
 
         <SeekBar
-            android:id="@+id/seekBar2"
+            android:id="@+id/transpose"
             style="@style/Widget.AppCompat.SeekBar.Discrete"
             android:layout_width="match_parent"
             android:layout_height="30dp"
@@ -99,6 +99,52 @@
                 android:gravity="end"/>
 
         </LinearLayout>
+
+
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Take Photo"
+            android:textColor="@color/white"
+            android:background="@drawable/capture_button_gradient"
+            android:gravity="center"
+            android:foreground="?android:attr/selectableItemBackground"
+            android:layout_margin="5dp"
+            android:id="@+id/captureButton"/>
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2">
+
+            <Button
+                android:layout_width="0dp"
+                android:layout_columnWeight="1"
+                android:layout_height="wrap_content"
+                android:text="Accumulator"
+                android:textColor="@color/white"
+                android:background="@drawable/capture_button_gradient"
+                android:gravity="center"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:layout_margin="5dp"
+                android:id="@+id/showAccumulator"/>
+
+            <Button
+                android:layout_width="0dp"
+                android:layout_columnWeight="1"
+                android:layout_height="wrap_content"
+                android:text="Audio Stats"
+                android:textColor="@color/white"
+                android:background="@drawable/capture_button_gradient"
+                android:gravity="center"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:layout_margin="5dp"
+                android:id="@+id/showAudioStats"/>
+
+        </GridLayout>
+
+
+
 
     </LinearLayout>
 
