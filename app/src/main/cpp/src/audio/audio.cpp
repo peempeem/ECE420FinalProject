@@ -103,7 +103,6 @@ aaudio_data_callback_result_t inputAudioDataCallback(
             audioInSize = 0;
         }
     }
-
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 

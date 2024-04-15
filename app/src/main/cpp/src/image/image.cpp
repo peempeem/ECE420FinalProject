@@ -1,5 +1,4 @@
 #include "image.h"
-#include <opencv2/imgproc/imgproc.hpp>
 #include "../audio/audio.h"
 
 void ImageAnalysis::processImage(cv::Mat& img)

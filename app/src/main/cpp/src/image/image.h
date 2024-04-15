@@ -1,6 +1,6 @@
 #pragma once
 
-#include <opencv2/core.hpp>
+#include "detection.h"
 
 namespace ImageAnalysis
 {

@@ -44,30 +44,37 @@ const MusicNote::Data* MusicNote::fromName(const char* name)
     unsigned midi;
     switch (name[0])
     {
+        case 'c':
         case 'C':
             midi = 0;
             break;
 
+        case 'd':
         case 'D':
             midi = 2;
             break;
 
+        case 'e':
         case 'E':
             midi = 4;
             break;
 
+        case 'f':
         case 'F':
             midi = 5;
             break;
 
+        case 'g':
         case 'G':
             midi = 7;
             break;
 
+        case 'a':
         case 'A':
             midi = 9;
             break;
 
+        case 'b':
         case 'B':
             midi = 11;
             break;
