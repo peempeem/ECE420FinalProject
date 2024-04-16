@@ -85,7 +85,7 @@ void processBuffer()
     const MusicNote::Data* note = musicNote.fromFrequency(frequency);
     if (!note)
         return;
-    LOGD(TAG, "%d: %f, %s, %f", peak, frequency, note->name, note->frequency);
+    //LOGD(TAG, "%d: %f, %s, %f", peak, frequency, note->name, note->frequency);
 }
 
 aaudio_data_callback_result_t inputAudioDataCallback(

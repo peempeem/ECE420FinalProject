@@ -3,6 +3,16 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+struct LineData
+{
+    int theta;
+    int distance;
+
+    LineData() {}
+    LineData(int theta, int distance) : theta(theta), distance(distance) {}
+};
+
+void getLines(cv::Mat& img, std::vector<LineData>& data);
 void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& grad);
 void train(cv::Mat& img, int threshold, std::vector<std::vector<float>>& rtable);
 void scan(cv::Mat& img,

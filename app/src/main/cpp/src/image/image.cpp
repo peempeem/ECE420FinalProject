@@ -1,30 +1,55 @@
 #include "image.h"
 #include "../audio/audio.h"
+#include "../util/log.h"
 
 void ImageAnalysis::processImage(cv::Mat& img)
 {
-    //auto start = std::chrono::high_resolution_clock::now();
+    static cv::Mat gray;
+    static cv::Mat canny;
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     /////////////////////////////////////////
     //////// Start of Implementation ////////
     /////////////////////////////////////////
 
-    static cv::Mat gray;
-    static cv::Mat edges;
-    static cv::Mat edges3;
-
-    cv::cvtColor(img, gray, cv::COLOR_BGRA2GRAY);
-    cv::Canny(gray, edges, 100, 10000, 7, true);
-    cv::cvtColor(edges, edges3, cv::COLOR_GRAY2BGRA);
-    img += edges3;
+    cv::cvtColor(img, gray, cv::COLOR_RGBA2GRAY);
+    cv::Canny(gray, canny, 100, 300);
+    std::vector<LineData> lines;
+    getLines(canny, lines);
+    cv::cvtColor(canny, img, cv::COLOR_GRAY2RGBA);
 
     /////////////////////////////////////////
     ///////// End of Implementation /////////
     /////////////////////////////////////////
 
-    //auto end = std::chrono::high_resolution_clock::now();
-    //auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    //LOGD(TAG, "Processing Time: %lld", duration.count());
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    LOGD(TAG, "Processing Time: %lld", duration.count());
+
+    for (LineData& line : lines)
+    {
+        float a = cosf(line.theta / 100.0f);
+        float b = sinf(line.theta / 100.0f);
+
+        int x0 = a * line.distance;
+        int y0 = b * line.distance;
+
+        int x1 = x0 + 1000 * (-b);
+        int y1 = y0 + 1000 * a;
+
+        int x2 = x0 - 1000 * (-b);
+        int y2 = y0 - 1000 * a;
+
+        cv::line(img,
+                 cv::Point(x1, y1),
+                 cv::Point(x2, y2),
+                 cv::Scalar(255, 0, 255, 255),
+                 2);
+    }
+
+
+
 }
 
 void ImageAnalysis::accumulator(cv::Mat& img)

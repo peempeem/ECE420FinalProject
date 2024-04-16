@@ -1,5 +1,54 @@
 #include "detection.h"
 #include "math.h"
+#include "../util/log.h"
+
+void getLines(cv::Mat& img, std::vector<LineData>& data)
+{
+    static std::vector<unsigned> accumulation;
+    static float cosValues[315];
+    static float sinValues[315];
+    static bool allocated = false;
+
+    // diagonal of image
+    int rmax = sqrtf(img.rows * img.rows + img.cols * img.cols);
+
+    accumulation.resize(315 * rmax * 2);
+    for (unsigned i = 0; i < accumulation.size(); ++i)
+        accumulation[i] = 0;
+
+    if (!allocated)
+    {
+        for (unsigned i = 0; i < 315; ++i)
+        {
+            cosValues[i] = cosf(i / 100.0f);
+            sinValues[i] = sinf(i / 100.0f);
+        }
+        allocated = true;
+    }
+
+    // accumulation
+    for (unsigned r = 0; r < img.rows; ++r)
+    {
+        for (unsigned c = 0; c < img.cols; ++c)
+        {
+            if (img.at<uint8_t>(r, c) < 127)
+                continue;
+
+            for (unsigned theta = 0; theta < 315; ++theta)
+            {
+                int dist = c * cosValues[theta] + r * sinValues[theta];
+                if (dist > -rmax && dist < rmax)
+                    accumulation[theta * 2 * rmax + dist + rmax]++;
+            }
+        }
+    }
+
+    for (unsigned i = 0; i < accumulation.size(); ++i)
+    {
+        if (accumulation[i] > img.cols / 3)
+            data.emplace_back(i / (rmax * 2), (i % (2 * rmax)) - rmax);
+    }
+}
 
 void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& grad)
 {
