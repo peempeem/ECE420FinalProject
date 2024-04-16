@@ -31,7 +31,7 @@ void getLines(cv::Mat& img, std::vector<LineData>& data)
     {
         for (unsigned c = 0; c < img.cols; ++c)
         {
-            if (img.at<uint8_t>(r, c) < 127)
+            if (img.at<uint8_t>(r, c) > 127)
                 continue;
 
             for (unsigned theta = 0; theta < 315; ++theta)

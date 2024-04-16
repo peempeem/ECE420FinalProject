@@ -14,7 +14,9 @@ void ImageAnalysis::processImage(cv::Mat& img)
     /////////////////////////////////////////
 
     cv::cvtColor(img, gray, cv::COLOR_RGBA2GRAY);
-    cv::Canny(gray, canny, 100, 300);
+    cv::adaptiveThreshold(gray, canny,
+                         255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+                         cv::THRESH_BINARY, 99, 2);
     std::vector<LineData> lines;
     getLines(canny, lines);
     cv::cvtColor(canny, img, cv::COLOR_GRAY2RGBA);
@@ -45,7 +47,7 @@ void ImageAnalysis::processImage(cv::Mat& img)
                  cv::Point(x1, y1),
                  cv::Point(x2, y2),
                  cv::Scalar(255, 0, 255, 255),
-                 2);
+                 1);
     }
 
 
