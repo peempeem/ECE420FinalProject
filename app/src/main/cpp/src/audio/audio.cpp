@@ -6,15 +6,15 @@
 #include "note.h"
 
 #define AUDIO_SAMPLING_RATE 48000
-#define AUDIO_SAMPLES_PER_BUFFER 1024 * 8
+#define AUDIO_SAMPLES_PER_BUFFER 1024 * 3
 #define KFFT_SIZE AUDIO_SAMPLES_PER_BUFFER * 2
-#define PEAK_VALUES 3
+#define PEAK_VALUES 2
 
 unsigned audioInSize = 0;
 float audioIn[AUDIO_SAMPLES_PER_BUFFER];
 kiss_fft_cfg kissFFTConfig;
 kiss_fft_cfg kissIFFTConfig;
-float noiseThreshold = 1e2 * AUDIO_SAMPLES_PER_BUFFER;
+float noiseThreshold = 1.5e2 * AUDIO_SAMPLES_PER_BUFFER;
 AAudioStream* audioStream = NULL;
 std::mutex fftMtx;
 std::mutex autoCorrMtx;
@@ -85,7 +85,7 @@ void processBuffer()
     const MusicNote::Data* note = musicNote.fromFrequency(frequency);
     if (!note)
         return;
-    //LOGD(TAG, "%d: %f, %s, %f", peak, frequency, note->name, note->frequency);
+    LOGD(TAG, "%d: %f, %s, %f", peak, frequency, note->name, note->frequency);
 }
 
 aaudio_data_callback_result_t inputAudioDataCallback(
