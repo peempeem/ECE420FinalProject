@@ -59,7 +59,30 @@ void ImageAnalysis::processImage(cv::Mat& img)
     std::vector<std::vector<std::vector<float>>> scanned(img.rows,std::vector<std::vector<float>>(img.cols,std::vector<float>(5)));
 
     make_rtables(rtablenote, rtabletreble,rtablebass,rtablesharp,rtableflat);
-    scan(img,scanned,rtablenote,rtabletreble,rtablebass,rtablesharp,rtableflat,10);
+    scan(gray,scanned,rtablenote,rtabletreble,rtablebass,rtablesharp,rtableflat,10);
+
+    Matrix2D<int> notescan (img.cols,img.rows);
+    Matrix2D<int> treblescan (img.cols,img.rows);
+    Matrix2D<int> bassscan (img.cols,img.rows);
+    Matrix2D<int> sharpscan (img.cols,img.rows);
+    Matrix2D<int> flatscan (img.cols,img.rows);
+
+
+    for(int i = 0; i<img.rows; i++){
+        for(int j = 0; j<img.cols; j++){
+            notescan.at(j,i)=scanned[i][j][0];
+            treblescan.at(j,i)=scanned[i][j][1];
+            bassscan.at(j,i)=scanned[i][j][2];
+            sharpscan.at(j,i)=scanned[i][j][3];
+            flatscan.at(j,i)=scanned[i][j][4];
+        }
+    }
+
+    auto notepeaks = notescan.findPeaks(1000, 0, 0);
+    auto treblepeaks = treblescan.findPeaks(0, 0, 0);
+    auto basspeaks = bassscan.findPeaks(0, 0, 0);
+    auto sharppeaks = sharpscan.findPeaks(0, 0, 0);
+    auto flatpeaks = flatscan.findPeaks(0, 0, 0);
 
 
     cv::cvtColor(img, gray, cv::COLOR_RGBA2GRAY);
@@ -100,6 +123,15 @@ void ImageAnalysis::processImage(cv::Mat& img)
                  1);
 
     }
+
+    for (auto& peak : notepeaks)
+    {
+        cv::Point center(peak.point.y,peak.point.x);
+        cv::Scalar line_Color(255, 0, 0);
+        cv::circle(img,center,10,line_Color,5);
+
+    }
+
 }
 
 void ImageAnalysis::accumulator(cv::Mat& img)
@@ -177,47 +209,53 @@ void ImageAnalysis::make_rtables(std::vector<std::vector<float>>& rtablenote,
                                std::vector<std::vector<float>>& rtablesharp,
                                std::vector<std::vector<float>>& rtableflat)
 {
-    cv::Mat notemat= cv::Mat::zeros(cv::Size(24,32), CV_64FC1);
-    cv::Mat treblemat=cv::Mat::zeros(cv::Size(87,40), CV_64FC1);
-    cv::Mat bassmat=cv::Mat::zeros(cv::Size(45,36), CV_64FC1);
-    cv::Mat sharpmat=cv::Mat::zeros(cv::Size(36,20), CV_64FC1);
-    cv::Mat flatmat=cv::Mat::zeros(cv::Size(36,20), CV_64FC1);
+    Matrix2D<int> noteMat(32, 24);
+    Matrix2D<int> trebleMat(40, 87);
+    Matrix2D<int> bassMat(36, 45);
+    Matrix2D<int> sharpMat(20, 36);
+    Matrix2D<int> flatMat(20, 36);
+
+//    cv::Mat notemat= cv::Mat::zeros(cv::Size(24,32), CV_64FC1);
+//    cv::Mat treblemat=cv::Mat::zeros(cv::Size(87,40), CV_64FC1);
+//    cv::Mat bassmat=cv::Mat::zeros(cv::Size(45,36), CV_64FC1);
+//    cv::Mat sharpmat=cv::Mat::zeros(cv::Size(36,20), CV_64FC1);
+//    cv::Mat flatmat=cv::Mat::zeros(cv::Size(36,20), CV_64FC1);
     int threshold = 10;
 
     for(int i = 0; i<24; i++){
         for(int j=0;j<32;j++){
-            notemat.at<int>(i,j)=noteobj[i][j];
+            noteMat.at(j,i)=noteobj[i][j];
         }
     }
 
     for(int i = 0; i<87; i++){
         for(int j=0;j<40;j++){
-            treblemat.at<int>(i,j)=treble[i][j];
+            trebleMat.at(j,i)=treble[i][j];
         }
     }
 
     for(int i = 0; i<45; i++){
         for(int j=0;j<36;j++){
-            bassmat.at<int>(i,j)=bass[i][j];
+            bassMat.at(j,i)=bass[i][j];
         }
     }
 
     for(int i = 0; i<36; i++){
         for(int j=0;j<20;j++){
-            sharpmat.at<int>(i,j)=sharp[i][j];
+            sharpMat.at(j,i)=sharp[i][j];
         }
     }
 
     for(int i = 0; i<36; i++){
         for(int j=0;j<20;j++){
-            flatmat.at<int>(i,j)=flat[i][j];
+            flatMat.at(j,i)=flat[i][j];
         }
     }
-    train(notemat,threshold,rtablenote);
-    train(treblemat,threshold,rtabletreble);
-    train(bassmat,threshold,rtablebass);
-    train(sharpmat,threshold,rtablesharp);
-    train(flatmat,threshold,rtableflat);
+    train(noteMat,threshold,rtablenote);
+    train(trebleMat,threshold,rtabletreble);
+    train(bassMat,threshold,rtablebass);
+    train(sharpMat,threshold,rtablesharp);
+    train(flatMat,threshold,rtableflat);
 }
 
 void ImageAnalysis::audioStats(cv::Mat& img)

@@ -70,10 +70,11 @@ void getLines(cv::Mat& img, std::vector<LineData>& data)
 
 }
 
-void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& grad)
+void get_gradientMat(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& grad)
 {
     int16_t x_kernel[3][3] = {{-1,0,1},{-1,0,1},{-1,0,1}};
     int16_t y_kernel[3][3] = {{-1,-1,-1},{0,0,0},{1,1,1}};
+    int checkval =0;
 
 
     for (int i = 0; i<pic.rows; i++){
@@ -87,8 +88,8 @@ void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& gr
             for(int k = starty; k<=endy;k++) {
                 for (int l = startx; l <= endx; l++) {
                     if(k>=0 && l>=0 && k<pic.cols && l<pic.rows){
-                        grad[i][j][0]+=x_kernel[l-i+1][k-j+1]*pic.at<int>(l,k);
-                        grad[i][j][1]+=y_kernel[l-i+1][k-j+1]*pic.at<int>(l,k);
+                        grad[i][j][0]+=x_kernel[l-i+1][k-j+1]*pic.at<uint8_t>(l,k);
+                        grad[i][j][1]+=y_kernel[l-i+1][k-j+1]*pic.at<uint8_t>(l,k);
                     }
                 }
             }
@@ -96,22 +97,48 @@ void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& gr
     }
 }
 
-void train(cv::Mat& pic, int threshold, std::vector<std::vector<float>>& rtable)
+void get_gradientMatrix2D(Matrix2D<int>& pic, std::vector<std::vector<std::vector<float>>>& grad)
+{
+    int16_t x_kernel[3][3] = {{-1,0,1},{-1,0,1},{-1,0,1}};
+    int16_t y_kernel[3][3] = {{-1,-1,-1},{0,0,0},{1,1,1}};
+
+
+    for (int i = 0; i<pic.height(); i++){
+        for( int j=0; j<pic.width(); j++){
+
+            int startx = i-1;
+            int endx = i+1;
+            int starty = j-1;
+            int endy = j+1;
+
+            for(int k = starty; k<=endy;k++) {
+                for (int l = startx; l <= endx; l++) {
+                    if(k>=0 && l>=0 && k<pic.width() && l<pic.height()){
+                        grad[i][j][0]+=x_kernel[l-i+1][k-j+1]*pic.at(k,l);
+                        grad[i][j][1]+=y_kernel[l-i+1][k-j+1]*pic.at(k,l);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void train(Matrix2D<int>& pic, int threshold, std::vector<std::vector<float>>& rtable)
 {
     //static cv::Mat pic;
     //cv::cvtColor(img, pic, cv::COLOR_BGRA2GRAY);
 
-    std::vector<std::vector<std::vector<float>>> traingrad(pic.rows,std::vector<std::vector<float>>(pic.cols,std::vector<float>(2)));
+    std::vector<std::vector<std::vector<float>>> traingrad(pic.height(),std::vector<std::vector<float>>(pic.width(),std::vector<float>(2)));
 
-    get_gradient(pic, traingrad);
+    get_gradientMatrix2D(pic, traingrad);
 
-    int center[2]={(int) pic.rows/2, (int) pic.cols/2};
+    int center[2]={ (int) pic.height()/2, (int) pic.width()/2};
 
     float gradient_mag;
     int direction;
 
-    for(int i = 1; i < pic.rows-1; i++){
-        for(int j = 1; j<pic.cols-1; j++){
+    for(int i = 1; i < pic.height()-1; i++){
+        for(int j = 1; j<pic.width()-1; j++){
             gradient_mag=pow(pow(traingrad[i][j][0],2)+pow(traingrad[i][j][1],2),0.5);
             if (gradient_mag>threshold){
                 direction = (int) atan2f(traingrad[i][j][0],traingrad[i][j][1])/M_PI*180;
@@ -141,12 +168,12 @@ void scan(cv::Mat& img,
     int direction;
     float gradient_mag;
 
-    float scales[5] = {spacing/16.5f, spacing/10, spacing/10,spacing/15, spacing/10};
+    float scales[5] = {spacing/16.5f, spacing/10.f, spacing/10.f,spacing/15.f, spacing/10.f};
     std::vector<std::vector<std::vector<float>>> rtables = {rtablenote, rtabletreble, rtablebass, rtablesharp, rtableflat};
 
 
     std::vector<std::vector<std::vector<float>>> gradient_pic (img.rows,std::vector<std::vector<float>>(img.cols,std::vector<float>(2)));
-    get_gradient(img, gradient_pic);
+    get_gradientMat (img, gradient_pic);
 
     for(int i = 1; i<img.rows-1; i++){
         for(int j = 1; j<img.cols-1; j++){
