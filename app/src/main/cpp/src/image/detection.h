@@ -2,6 +2,7 @@
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include "matrix.h"
 
 struct LineData
 {

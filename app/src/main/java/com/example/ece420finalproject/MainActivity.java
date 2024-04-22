@@ -49,13 +49,15 @@ public class MainActivity extends AppCompatActivity {
     private Button capture;
     private Button showAccumulator;
     private Button showAudioStats;
+    private Button calibrateCamera;
 
     private enum DisplayState {
         PREROLLING,
         CAPTURED1,
         CAPTURED2,
         ACCUMULATOR,
-        AUDIOSTATS
+        AUDIOSTATS,
+        CALIBRATE
     }
 
     private DisplayState displayState = DisplayState.PREROLLING;
@@ -68,6 +70,9 @@ public class MainActivity extends AppCompatActivity {
     private native void processImage(Bitmap bitmap);
     private native void accumulator(Bitmap bitmap);
     private native void audioStats(Bitmap bitmap);
+    private native void beginCalibration();
+    private native void calibrationStep(Bitmap bitmap);
+    private native void endCalibration();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -87,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
         capture = findViewById(R.id.captureButton);
         showAccumulator = findViewById(R.id.showAccumulator);
         showAudioStats = findViewById(R.id.showAudioStats);
+        calibrateCamera = findViewById(R.id.calibrateCamera);
 
         capture.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -94,7 +100,11 @@ public class MainActivity extends AppCompatActivity {
                 if (displayState == DisplayState.PREROLLING)
                     displayState = DisplayState.CAPTURED1;
                 else
+                {
                     displayState = DisplayState.PREROLLING;
+                    capture.setText("Take Photo");
+                }
+
             }
         });
 
@@ -109,6 +119,22 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 displayState = DisplayState.AUDIOSTATS;
+            }
+        });
+
+        calibrateCamera.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (displayState != DisplayState.CALIBRATE) {
+                    beginCalibration();
+                    calibrateCamera.setText("END CALIBRATION");
+                    displayState = DisplayState.CALIBRATE;
+                }
+                else {
+                    endCalibration();
+                    calibrateCamera.setText("CALIBRATE CAMERA");
+                    displayState = DisplayState.PREROLLING;
+                }
             }
         });
 
@@ -186,6 +212,11 @@ public class MainActivity extends AppCompatActivity {
                 case AUDIOSTATS:
                     bitmap = Bitmap.createBitmap(imageProxy.getWidth(), imageProxy.getHeight(), Bitmap.Config.ARGB_8888);
                     audioStats(bitmap);
+                    break;
+
+                case CALIBRATE:
+                    bitmap = imageProxy.toBitmap();
+                    calibrationStep(bitmap);
                     break;
 
                 default:

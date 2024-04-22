@@ -141,6 +141,18 @@
                 android:layout_margin="5dp"
                 android:id="@+id/showAudioStats"/>
 
+            <Button
+                android:layout_width="0dp"
+                android:layout_columnWeight="1"
+                android:layout_height="wrap_content"
+                android:text="Calibrate Camera"
+                android:textColor="@color/white"
+                android:background="@drawable/capture_button_gradient"
+                android:gravity="center"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:layout_margin="5dp"
+                android:id="@+id/calibrateCamera"/>
+
         </GridLayout>
 
     </LinearLayout>

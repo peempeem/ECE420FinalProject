@@ -4,27 +4,25 @@
 
 void getLines(cv::Mat& img, std::vector<LineData>& data)
 {
-    static std::vector<unsigned> accumulation;
-    static float cosValues[315];
-    static float sinValues[315];
+    static Matrix2D<int> accumulation;
+    static float cosValues[314];
+    static float sinValues[314];
     static bool allocated = false;
-
-    // diagonal of image
-    int rmax = sqrtf(img.rows * img.rows + img.cols * img.cols);
-
-    accumulation.resize(315 * rmax * 2);
-    for (unsigned i = 0; i < accumulation.size(); ++i)
-        accumulation[i] = 0;
 
     if (!allocated)
     {
-        for (unsigned i = 0; i < 315; ++i)
+        for (unsigned i = 0; i < 314; ++i)
         {
             cosValues[i] = cosf(i / 100.0f);
             sinValues[i] = sinf(i / 100.0f);
         }
         allocated = true;
     }
+
+    // diagonal of image
+    int rmax = sqrtf(img.rows * img.rows + img.cols * img.cols);
+    accumulation.resize(314, 2 * rmax);
+    accumulation.fill(0);
 
     // accumulation
     for (unsigned r = 0; r < img.rows; ++r)
@@ -34,20 +32,42 @@ void getLines(cv::Mat& img, std::vector<LineData>& data)
             if (img.at<uint8_t>(r, c) < 127)
                 continue;
 
-            for (unsigned theta = 0; theta < 315; ++theta)
+            for (unsigned theta = 0; theta < 314; ++theta)
             {
-                int dist = c * cosValues[theta] + r * sinValues[theta];
+                int dist = roundf(c * cosValues[theta] + r * sinValues[theta]);
                 if (dist > -rmax && dist < rmax)
-                    accumulation[theta * 2 * rmax + dist + rmax]++;
+                    accumulation.at(theta, dist + rmax)++;
             }
         }
     }
 
-    for (unsigned i = 0; i < accumulation.size(); ++i)
-    {
-        if (accumulation[i] > img.cols / 3)
-            data.emplace_back(i / (rmax * 2), (i % (2 * rmax)) - rmax);
-    }
+    for (auto& peak : accumulation.findPeaks(300, 20, 8))
+        data.emplace_back(peak.point.y, peak.point.x - rmax);
+
+
+//    unsigned dBlockX = 10;
+//    unsigned dBlockY = 4;
+//    unsigned maxBlockX = ceilf(2 * rmax / (float) dBlockX);
+//    unsigned maxBlockY = ceilf(314 / (float) dBlockY);
+//
+//    for (unsigned blockY = 0; blockY < maxBlockY; ++blockY)
+//    {
+//        unsigned yMin = blockY * dBlockY;
+//        unsigned kyMax = yMax + dBlockY;
+//        if (yMax >= 314)
+//            yMax = 313;
+//
+//        for (unsigned blockX = 0; blockX < maxBlockX; ++blockX)
+//        {
+//            unsigned xMin =
+//            unsigned xMax = (blockX + 1) * dBlockX;
+//            if (xMax >= 2 * rmax)
+//                xMax = 2 * rmax - 1;
+//
+//            for (unsigned y = blockY * db)
+//        }
+//    }
+
 }
 
 void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& grad)
