@@ -122,9 +122,8 @@ std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::findPeaks(T min, unsigned k
                     (x < width() - 1 && curr < at(y, x + 1)) ||
                     (y > 1 && curr < at(y - 1, x)) ||
                     (y < height() - 1 && curr < at(y + 1, x)))
-                curr = T();
-            else
-                map.insert({curr, {y, x}});
+                continue;
+            map.insert({curr, {y, x}});
         }
     }
 
