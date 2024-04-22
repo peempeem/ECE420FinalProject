@@ -116,12 +116,12 @@ std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::findPeaks(T min, unsigned k
     {
         for (unsigned x = 0; x < width(); ++x)
         {
-            T& curr = at(y, x);
+            T &curr = at(y, x);
             if (curr < min ||
-                    (x > 1 && curr < at(y, x - 1)) ||
-                    (x < width() - 1 && curr < at(y, x + 1)) ||
-                    (y > 1 && curr < at(y - 1, x)) ||
-                    (y < height() - 1 && curr < at(y + 1, x)))
+                (x > 1 && curr < at(y, x - 1)) ||
+                (x < width() - 1 && curr < at(y, x + 1)) ||
+                (y > 1 && curr < at(y - 1, x)) ||
+                (y < height() - 1 && curr < at(y + 1, x)))
                 continue;
             map.insert({curr, {y, x}});
         }
@@ -134,12 +134,15 @@ std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::findPeaks(T min, unsigned k
         unsigned xHops;
 
         ToVisit() {}
-        ToVisit(Point point, unsigned yHops, unsigned xHops) : point(point), yHops(yHops), xHops(xHops) {}
+
+        ToVisit(Point point, unsigned yHops, unsigned xHops) : point(point), yHops(yHops),
+                                                               xHops(xHops) {}
     };
 
     std::vector<bool> visited(_size, false);
     std::queue<ToVisit> toVisit;
     std::vector<Peak> peaks;
+
 
     for (auto it = map.begin(); it != map.end(); ++it)
     {
@@ -147,11 +150,12 @@ std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::findPeaks(T min, unsigned k
             continue;
 
         toVisit.emplace(it->second, ky, kx);
+
         peaks.emplace_back(at(it->second), it->second);
 
         while (!toVisit.empty())
         {
-            ToVisit& tv = toVisit.front();
+            ToVisit &tv = toVisit.front();
             unsigned idx = tv.point.y * _x + tv.point.x;
 
             if (!visited[idx])

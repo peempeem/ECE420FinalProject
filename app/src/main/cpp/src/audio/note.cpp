@@ -41,6 +41,9 @@ const MusicNote::Data* MusicNote::fromMIDI(int midi)
 
 const MusicNote::Data* MusicNote::fromName(const char* name)
 {
+    if (strlen(name) < 2)
+        return NULL;
+
     unsigned midi;
     switch (name[0])
     {

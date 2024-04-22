@@ -1,48 +1,147 @@
 #include "detection.h"
 #include "math.h"
 #include "../util/log.h"
+#include <map>
 
-void getLines(cv::Mat& img, std::vector<LineData>& data)
-{
+#define LINE_ACCUMULATION_ANGLES 200
+
+void getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineData>& allLines) {
     static Matrix2D<int> accumulation;
-    static float cosValues[314];
-    static float sinValues[314];
+    static float cosValues[LINE_ACCUMULATION_ANGLES];
+    static float sinValues[LINE_ACCUMULATION_ANGLES];
     static bool allocated = false;
 
-    if (!allocated)
-    {
-        for (unsigned i = 0; i < 314; ++i)
-        {
-            cosValues[i] = cosf(i / 100.0f);
-            sinValues[i] = sinf(i / 100.0f);
+    if (!allocated) {
+        for (unsigned i = 0; i < LINE_ACCUMULATION_ANGLES; ++i) {
+            cosValues[i] = cosf(M_PI * i / (float) LINE_ACCUMULATION_ANGLES);
+            sinValues[i] = sinf(M_PI * i / (float) LINE_ACCUMULATION_ANGLES);
         }
         allocated = true;
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     // diagonal of image
     int rmax = sqrtf(img.rows * img.rows + img.cols * img.cols);
-    accumulation.resize(314, 2 * rmax);
+    accumulation.resize(LINE_ACCUMULATION_ANGLES, 2 * rmax);
     accumulation.fill(0);
 
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    LOGD(TAG, "Zero Fill: %lld", duration.count());
+
+    start = std::chrono::high_resolution_clock::now();
+
     // accumulation
-    for (unsigned r = 0; r < img.rows; ++r)
-    {
-        for (unsigned c = 0; c < img.cols; ++c)
-        {
+    for (unsigned r = 0; r < img.rows; ++r) {
+        for (unsigned c = 0; c < img.cols; ++c) {
             if (img.at<uint8_t>(r, c) < 127)
                 continue;
 
-            for (unsigned theta = 0; theta < 314; ++theta)
-            {
+            for (unsigned theta = 0; theta < LINE_ACCUMULATION_ANGLES; ++theta) {
                 int dist = roundf(c * cosValues[theta] + r * sinValues[theta]);
-                if (dist > -rmax && dist < rmax)
+                if (dist >= -rmax && dist < rmax)
                     accumulation.at(theta, dist + rmax)++;
             }
         }
     }
 
-    for (auto& peak : accumulation.findPeaks(300, 20, 8))
-        data.emplace_back(peak.point.y, peak.point.x - rmax);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    LOGD(TAG, "Accumulation: %lld", duration.count());
+
+    start = std::chrono::high_resolution_clock::now();
+
+    auto rawPeaks = accumulation.findPeaks(250, 16, 8);
+
+    for (auto& peak : rawPeaks)
+        allLines.emplace_back(M_PI * peak.point.y / (float) LINE_ACCUMULATION_ANGLES,(int) peak.point.x - rmax);
+
+    struct PointPeak
+    {
+        Matrix2D<int>::Peak peak;
+        int yMid;
+
+        PointPeak() {}
+        PointPeak(Matrix2D<int>::Peak& peak, int yMid) : peak(peak), yMid(yMid) {}
+
+        bool operator<(const PointPeak& other) const
+        {
+            return yMid < other.yMid;
+        }
+    };
+    std::vector<PointPeak> pointPeaks;
+
+    for (unsigned i = 0; i < rawPeaks.size(); ++i)
+    {
+        float a = cosValues[rawPeaks[i].point.y];
+        float b = sinValues[rawPeaks[i].point.y];
+
+        int dist = (int) rawPeaks[i].point.x - rmax;
+        float x0 = a * dist;
+        float y0 = b * dist;
+        int xMid = img.cols / 2.0f;
+        int yMid = -(a / b) * (xMid - x0) + y0;
+
+        if (yMid < 0 || yMid > img.rows)
+            continue;
+
+        pointPeaks.emplace_back(rawPeaks[i], yMid);
+    }
+
+    if (pointPeaks.size() < 5)
+        return;
+
+    std::sort(pointPeaks.begin(), pointPeaks.end());
+
+    std::vector<unsigned> pointDiff(pointPeaks.size() - 1);
+    for (unsigned i = 0; i < pointDiff.size(); ++i)
+        pointDiff[i] = pointPeaks[i + 1].yMid - pointPeaks[i].yMid;
+
+    for (unsigned i = 0; i < pointPeaks.size(); ++i)
+    {
+        if (i > pointPeaks.size() - 5)
+            break;
+
+        float cmp1 = pointDiff[i];
+        bool found = true;
+
+
+        for (unsigned j = 0; j < 4; ++j)
+        {
+            float cmp2 = pointDiff[i + j];
+            float cmp = cmp2 / cmp1;
+            if (cmp < 0.9 || cmp > 1.1)
+            {
+                found = false;
+                break;
+            }
+        }
+
+        if (found)
+        {
+            for (unsigned j = 0; j < 5; ++j)
+            {
+                Matrix2D<int>::Peak& peak = pointPeaks[i + j].peak;
+                noteLines.emplace_back(M_PI * peak.point.y / (float) LINE_ACCUMULATION_ANGLES,
+                                  (int) peak.point.x - rmax);
+            }
+        }
+
+        LOGD(TAG, "%d %d", pointPeaks[i].yMid, (i < pointDiff.size()) ? pointDiff[i] : -1);
+    }
+
+
+
+
+//    for (auto& peak : rawPeaks)
+//        data.emplace_back(((float) M_PI) * peak.point.y / (float) LINE_ACCUMULATION_ANGLES, (int) peak.point.x - rmax);
+
+
+
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    LOGD(TAG, "Peaks: %lld", duration.count());
 
 
 //    unsigned dBlockX = 10;

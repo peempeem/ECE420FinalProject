@@ -7,14 +7,14 @@
 
 struct LineData
 {
-    int theta;
-    int distance;
+    float theta;
+    float distance;
 
     LineData() {}
-    LineData(int theta, int distance) : theta(theta), distance(distance) {}
+    LineData(float theta, float distance) : theta(theta), distance(distance) {}
 };
 
-void getLines(cv::Mat& img, std::vector<LineData>& data);
+void getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineData>& allLines);
 void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& grad);
 void train(cv::Mat& img, int threshold, std::vector<std::vector<float>>& rtable);
 void scan(cv::Mat& img,

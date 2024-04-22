@@ -32,15 +32,18 @@ void ImageAnalysis::processImage(cv::Mat& img)
     //////// Start of Implementation ////////
     /////////////////////////////////////////
 
+    bool useUndistort;
     calibMtx.lock();
     if (calibCalibration)
     {
         cv::undistort(img, undistorted, calibCameraMatrix, calibDistanceCoefficients);
-        cv::cvtColor(undistorted, gray, cv::COLOR_RGBA2GRAY);
+        useUndistort = true;
         calibMtx.unlock();
+        cv::cvtColor(undistorted, gray, cv::COLOR_RGBA2GRAY);
     }
     else
     {
+        useUndistort = false;
         calibMtx.unlock();
         cv::cvtColor(img, gray, cv::COLOR_RGBA2GRAY);
     }
@@ -48,6 +51,7 @@ void ImageAnalysis::processImage(cv::Mat& img)
     cv::adaptiveThreshold(gray, canny, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 3, 3);
     //cv::Canny(gray, canny, 50, 150);
 
+<<<<<<< Updated upstream
 
 
     std::vector<std::vector<float>> rtablenote(360, std::vector<float>(2));
@@ -70,6 +74,15 @@ void ImageAnalysis::processImage(cv::Mat& img)
     std::vector<LineData> lines;
     getLines(canny, lines);
     cv::cvtColor(canny, img, cv::COLOR_GRAY2RGBA);
+=======
+    std::vector<LineData> noteLines;
+    std::vector<LineData> otherLines;
+    getLines(canny, noteLines, otherLines);
+    //cv::cvtColor(canny, img, cv::COLOR_GRAY2RGBA);
+
+    if (useUndistort)
+        undistorted.copyTo(img);
+>>>>>>> Stashed changes
 
     /////////////////////////////////////////
     ///////// End of Implementation /////////
@@ -79,19 +92,40 @@ void ImageAnalysis::processImage(cv::Mat& img)
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     LOGD(TAG, "Processing Time: %lld", duration.count());
 
-    for (LineData& line : lines)
+    for (LineData& line : otherLines)
     {
-        float a = cosf(line.theta / 100.0f);
-        float b = sinf(line.theta / 100.0f);
+        float a = cosf(line.theta);
+        float b = sinf(line.theta);
 
         int x0 = a * line.distance;
         int y0 = b * line.distance;
 
-        int x1 = x0 + 10000 * (-b);
-        int y1 = y0 + 10000 * a;
+        int x1 = x0 + (int) 10000 * (-b);
+        int y1 = y0 + (int) 10000 * a;
 
-        int x2 = x0 - 10000 * (-b);
-        int y2 = y0 - 10000 * a;
+        int x2 = x0 - (int) 10000 * (-b);
+        int y2 = y0 - (int) 10000 * a;
+
+        cv::line(img,
+                 cv::Point(x1, y1),
+                 cv::Point(x2, y2),
+                 cv::Scalar(0, 255, 0, 255),
+                 1);
+    }
+
+    for (LineData& line : noteLines)
+    {
+        float a = cosf(line.theta);
+        float b = sinf(line.theta);
+
+        int x0 = a * line.distance;
+        int y0 = b * line.distance;
+
+        int x1 = x0 + (int) 10000 * (-b);
+        int y1 = y0 + (int) 10000 * a;
+
+        int x2 = x0 - (int) 10000 * (-b);
+        int y2 = y0 - (int) 10000 * a;
 
         cv::line(img,
                  cv::Point(x1, y1),
@@ -153,7 +187,6 @@ void ImageAnalysis::endCalibration() {
     std::vector<std::vector<cv::Point3f>> objPts;
     for (unsigned i = 0; i < calibImgPoints.size(); ++i)
         objPts.push_back(wldPts);
-
 
     LOGD(TAG, "Calibration Frames: %lu", calibImgPoints.size());
     if (!calibImgPoints.empty()) {
