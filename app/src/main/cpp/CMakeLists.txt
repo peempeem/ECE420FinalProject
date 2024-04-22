@@ -9,6 +9,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         native-lib.cpp
         src/image/image.cpp
         src/image/detection.cpp
+        src/image/img_storage.cpp
         src/audio/audio.cpp
         src/audio/note.cpp
         kiss_fft/kiss_fft.c)

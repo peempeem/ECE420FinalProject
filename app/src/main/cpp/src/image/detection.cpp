@@ -67,8 +67,8 @@ void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& gr
             for(int k = starty; k<=endy;k++) {
                 for (int l = startx; l <= endx; l++) {
                     if(k>=0 && l>=0 && k<pic.cols && l<pic.rows){
-                        grad[i][j][0]+=x_kernel[l-i+1][k-j+1]*pic.at<double>(l,k);
-                        grad[i][j][1]+=y_kernel[l-i+1][k-j+1]*pic.at<double>(l,k);
+                        grad[i][j][0]+=x_kernel[l-i+1][k-j+1]*pic.at<int>(l,k);
+                        grad[i][j][1]+=y_kernel[l-i+1][k-j+1]*pic.at<int>(l,k);
                     }
                 }
             }
@@ -76,10 +76,10 @@ void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& gr
     }
 }
 
-void train(cv::Mat& img, int threshold, std::vector<std::vector<float>>& rtable)
+void train(cv::Mat& pic, int threshold, std::vector<std::vector<float>>& rtable)
 {
-    static cv::Mat pic;
-    cv::cvtColor(img, pic, cv::COLOR_BGRA2GRAY);
+    //static cv::Mat pic;
+    //cv::cvtColor(img, pic, cv::COLOR_BGRA2GRAY);
 
     std::vector<std::vector<std::vector<float>>> traingrad(pic.rows,std::vector<std::vector<float>>(pic.cols,std::vector<float>(2)));
 
@@ -95,7 +95,8 @@ void train(cv::Mat& img, int threshold, std::vector<std::vector<float>>& rtable)
             gradient_mag=pow(pow(traingrad[i][j][0],2)+pow(traingrad[i][j][1],2),0.5);
             if (gradient_mag>threshold){
                 direction = (int) atan2f(traingrad[i][j][0],traingrad[i][j][1])/M_PI*180;
-
+                if(direction<0)
+                    direction+=360;
                 rtable[direction][0]=i-center[0];
                 rtable[direction][1]=j-center[1];
 
@@ -128,10 +129,12 @@ void scan(cv::Mat& img,
     get_gradient(img, gradient_pic);
 
     for(int i = 1; i<img.rows-1; i++){
-        for(int j = 1; i<img.cols-1; i++){
+        for(int j = 1; j<img.cols-1; j++){
             gradient_mag=pow(pow(gradient_pic[i][j][0],2)+pow(gradient_pic[i][j][1],2),0.5);
             if (gradient_mag>threshold){
                 direction = (int) atan2f(gradient_pic[i][j][0],gradient_pic[i][j][1])/M_PI*180;
+                if (direction<0)
+                    direction+=360;
                 for(int k = 0; k<5; k++){
                     xcoord = (int) (i - rtables[k][direction][0]*scales[k]);
                     ycoord = (int) (j - rtables[k][direction][1]*scales[k]);
