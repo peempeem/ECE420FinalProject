@@ -1,6 +1,7 @@
 #include "image.h"
 #include "../audio/audio.h"
 #include "../util/log.h"
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/calib3d.hpp>
 
 std::vector<std::vector<cv::Point2f>> calibImgPoints;
@@ -16,6 +17,7 @@ std::mutex calibMtx;
 
 #define CHECKERBOARD_X 7
 #define CHECKERBOARD_Y 7
+
 
 void ImageAnalysis::processImage(cv::Mat& img)
 {
@@ -46,6 +48,25 @@ void ImageAnalysis::processImage(cv::Mat& img)
     cv::adaptiveThreshold(gray, canny, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 3, 3);
     //cv::Canny(gray, canny, 50, 150);
 
+
+
+    std::vector<std::vector<float>> rtablenote(360, std::vector<float>(2));
+    std::vector<std::vector<float>> rtabletreble(360, std::vector<float>(2));
+    std::vector<std::vector<float>> rtablebass(360, std::vector<float>(2));
+    std::vector<std::vector<float>> rtablesharp(360, std::vector<float>(2));
+    std::vector<std::vector<float>> rtableflat(360, std::vector<float>(2));
+
+    std::vector<std::vector<std::vector<float>>> scanned(img.rows,std::vector<std::vector<float>>(img.cols,std::vector<float>(5)));
+
+    make_rtables(rtablenote, rtabletreble,rtablebass,rtablesharp,rtableflat);
+    scan(img,scanned,rtablenote,rtabletreble,rtablebass,rtablesharp,rtableflat,10);
+
+
+    cv::cvtColor(img, gray, cv::COLOR_RGBA2GRAY);
+//    cv::adaptiveThreshold(gray, canny,
+//                         255, cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+//                         cv::THRESH_BINARY, 99, 2);
+    cv::Canny(gray, canny, 100, 300);
     std::vector<LineData> lines;
     getLines(canny, lines);
     cv::cvtColor(canny, img, cv::COLOR_GRAY2RGBA);
@@ -77,6 +98,7 @@ void ImageAnalysis::processImage(cv::Mat& img)
                  cv::Point(x2, y2),
                  cv::Scalar(255, 0, 255, 255),
                  1);
+
     }
 }
 
@@ -120,12 +142,10 @@ void ImageAnalysis::calibrateCamera(cv::Mat& img)
 
 }
 
-void ImageAnalysis::endCalibration()
-{
+void ImageAnalysis::endCalibration() {
     calibMtx.lock();
     std::vector<cv::Point3f> wldPts;
-    for (unsigned y = 0; y < CHECKERBOARD_Y; ++y)
-    {
+    for (unsigned y = 0; y < CHECKERBOARD_Y; ++y) {
         for (unsigned x = 0; x < CHECKERBOARD_X; ++x)
             wldPts.emplace_back(x, y, 0);
     }
@@ -136,8 +156,7 @@ void ImageAnalysis::endCalibration()
 
 
     LOGD(TAG, "Calibration Frames: %lu", calibImgPoints.size());
-    if (!calibImgPoints.empty())
-    {
+    if (!calibImgPoints.empty()) {
         cv::calibrateCamera(
                 objPts,
                 calibImgPoints,
@@ -150,6 +169,55 @@ void ImageAnalysis::endCalibration()
     }
     calibMtx.unlock();
     LOGD(TAG, "Camera Calibration Complete");
+}
+
+void ImageAnalysis::make_rtables(std::vector<std::vector<float>>& rtablenote,
+                               std::vector<std::vector<float>>& rtabletreble,
+                               std::vector<std::vector<float>>& rtablebass,
+                               std::vector<std::vector<float>>& rtablesharp,
+                               std::vector<std::vector<float>>& rtableflat)
+{
+    cv::Mat notemat= cv::Mat::zeros(cv::Size(24,32), CV_64FC1);
+    cv::Mat treblemat=cv::Mat::zeros(cv::Size(87,40), CV_64FC1);
+    cv::Mat bassmat=cv::Mat::zeros(cv::Size(45,36), CV_64FC1);
+    cv::Mat sharpmat=cv::Mat::zeros(cv::Size(36,20), CV_64FC1);
+    cv::Mat flatmat=cv::Mat::zeros(cv::Size(36,20), CV_64FC1);
+    int threshold = 10;
+
+    for(int i = 0; i<24; i++){
+        for(int j=0;j<32;j++){
+            notemat.at<int>(i,j)=noteobj[i][j];
+        }
+    }
+
+    for(int i = 0; i<87; i++){
+        for(int j=0;j<40;j++){
+            treblemat.at<int>(i,j)=treble[i][j];
+        }
+    }
+
+    for(int i = 0; i<45; i++){
+        for(int j=0;j<36;j++){
+            bassmat.at<int>(i,j)=bass[i][j];
+        }
+    }
+
+    for(int i = 0; i<36; i++){
+        for(int j=0;j<20;j++){
+            sharpmat.at<int>(i,j)=sharp[i][j];
+        }
+    }
+
+    for(int i = 0; i<36; i++){
+        for(int j=0;j<20;j++){
+            flatmat.at<int>(i,j)=flat[i][j];
+        }
+    }
+    train(notemat,threshold,rtablenote);
+    train(treblemat,threshold,rtabletreble);
+    train(bassmat,threshold,rtablebass);
+    train(sharpmat,threshold,rtablesharp);
+    train(flatmat,threshold,rtableflat);
 }
 
 void ImageAnalysis::audioStats(cv::Mat& img)

@@ -18,6 +18,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         src/image/matrix.h
         src/image/matrix.hpp
         src/audio/audio.h
+        src/image/img_storage.cpp
+        src/image/img_storage.h
         src/audio/audio.cpp
         src/audio/note.h
         src/audio/note.cpp

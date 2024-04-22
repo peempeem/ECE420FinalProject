@@ -3,6 +3,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include "matrix.h"
+#include "img_storage.h"
 
 struct LineData
 {
