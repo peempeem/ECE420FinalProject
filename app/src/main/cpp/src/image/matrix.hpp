@@ -2,46 +2,50 @@
 #include "../util/log.h"
 #include <map>
 #include <queue>
+#include <memory>
+#include <sstream>
+
+#define DEBUG true
 
 template<class T>
-Matrix2D<T>::Itterator::Itterator(unsigned int idx, T* data) : _idx(idx), _data(data)
+Matrix2D<T>::Iterator::Iterator(unsigned int idx, T* data) : _idx(idx), _data(data)
 {
 
 }
 
 template<class T>
-T& Matrix2D<T>::Itterator::operator*()
+T& Matrix2D<T>::Iterator::operator*()
 {
     return _data[_idx];
 }
 
 template<class T>
-T* Matrix2D<T>::Itterator::operator->()
+T* Matrix2D<T>::Iterator::operator->()
 {
     return &_data[_idx];
 }
 
 template<class T> typename
-Matrix2D<T>::Itterator& Matrix2D<T>::Itterator::operator++()
+Matrix2D<T>::Iterator& Matrix2D<T>::Iterator::operator++()
 {
     _idx++;
     return *this;
 }
 
 template<class T> typename
-Matrix2D<T>::Itterator Matrix2D<T>::Itterator::operator++(int)
+Matrix2D<T>::Iterator Matrix2D<T>::Iterator::operator++(int)
 {
-    return Itterator(_idx + 1, _data);
+    return Iterator(_idx + 1, _data);
 }
 
 template<class T>
-bool Matrix2D<T>::Itterator::operator!=(const Itterator& other) const
+bool Matrix2D<T>::Iterator::operator!=(const Iterator& other) const
 {
     return _idx = other._idx;
 }
 
 template<class T>
-unsigned Matrix2D<T>::Itterator::idx() const
+unsigned Matrix2D<T>::Iterator::idx() const
 {
     return _idx;
 }
@@ -66,6 +70,27 @@ Matrix2D<T>::Matrix2D(unsigned y, unsigned x, const T& data) : _y(y), _x(x)
 }
 
 template<class T>
+Matrix2D<T>::Matrix2D(unsigned y, unsigned x, const T* data) : _y(y), _x(x)
+{
+    _create();
+    memcpy(_data.get(), data, _size * sizeof(T));
+}
+
+template<class T>
+Matrix2D<T>::Matrix2D(cv::Mat& mat)
+{
+    if (!mat.isContinuous())
+        throw std::invalid_argument("cv::Mat is not contiguous");
+    else if (mat.elemSize() != sizeof(T))
+        throw std::invalid_argument("cv::Mat data type size does not match Matrix2D<T> data type size");
+
+    _y = mat.rows;
+    _x = mat.cols;
+    _create();
+    memcpy(_data.get(), mat.data, _size * sizeof(T));
+}
+
+template<class T>
 unsigned Matrix2D<T>::width()
 {
     return _x;
@@ -80,19 +105,49 @@ unsigned Matrix2D<T>::height()
 template<class T>
 T& Matrix2D<T>::at(Point pt)
 {
+    #if DEBUG
+    if (pt.y >= _y)
+    {
+        std::stringstream ss;
+        ss << "y index " << pt.y << " is out of bounds. Max size is " << _y;
+        throw std::invalid_argument(ss.str());
+    }
+    else if (pt.x >= _x)
+    {
+        std::stringstream ss;
+        ss << "x index " << pt.x << " is out of bounds. Max size is " << _x;
+        throw std::invalid_argument(ss.str());
+    }
+    #endif
+
     return _data[pt.y * _x + pt.x];
 }
 
 template<class T>
 T& Matrix2D<T>::at(unsigned y, unsigned x)
 {
+    #if DEBUG
+    if (y >= _y)
+    {
+        std::stringstream ss;
+        ss << "y index " << y << " is out of bounds. Max size is " << _y;
+        throw std::invalid_argument(ss.str());
+    }
+    else if (x >= _x)
+    {
+        std::stringstream ss;
+        ss << "x index " << x << " is out of bounds. Max size is " << _x;
+        throw std::invalid_argument(ss.str());
+    }
+    #endif
+
     return _data[y * _x + x];
 }
 
 template<class T>
 void Matrix2D<T>::resize(unsigned y, unsigned x)
 {
-    if (y != _y || x != _x)
+    if (y != height() || x != width())
     {
         _y = y;
         _x = x;
@@ -108,7 +163,7 @@ void Matrix2D<T>::fill(const T& data)
 }
 
 template<class T>
-std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::findPeaks(T min, unsigned ky, unsigned kx)
+std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::peaks(T min, unsigned ky, unsigned kx)
 {
     std::multimap<T, Point, std::greater<unsigned>> map;
 
@@ -186,16 +241,60 @@ std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::findPeaks(T min, unsigned k
     return peaks;
 }
 
-template<class T> typename
-Matrix2D<T>::Itterator Matrix2D<T>::begin()
+template<class T>
+void Matrix2D<T>::gradient(Matrix2D<Float2>& grad)
 {
-    return Itterator(0, _data);
+    int xKernel[3][3] =
+            {
+                    {-1, 0, 1},
+                    {-1, 0, 1},
+                    {-1, 0, 1}
+            };
+    int yKernel[3][3] =
+            {
+                    {-1, -1, -1},
+                    {0, 0, 0},
+                    {1, 1, 1}
+            };
+
+    grad.resize(height(), width());
+    grad.fill(Float2(0, 0));
+
+    for (int y = 0; y < height(); ++y)
+    {
+        for (int x = 0; x < width(); ++x)
+        {
+            for (int ky = 0; ky < 3; ++ky)
+            {
+                int yy = y + ky - 1;
+                if (yy < 0 || yy >= height())
+                    continue;
+
+                for (int kx = 0; kx < 3; ++kx)
+                {
+                    int xx = x + kx - 1;
+                    if (xx < 0 || xx >= width())
+                        continue;
+
+                    Float2& data = grad.at(y, x);
+                    data.x += xKernel[ky][kx] * at(yy, xx);
+                    data.y += yKernel[ky][kx] * at(yy, xx);
+                }
+            }
+        }
+    }
 }
 
 template<class T> typename
-Matrix2D<T>::Itterator Matrix2D<T>::end()
+Matrix2D<T>::Iterator Matrix2D<T>::begin()
 {
-    return Itterator(_size, _data);
+    return Iterator(0, _data);
+}
+
+template<class T> typename
+Matrix2D<T>::Iterator Matrix2D<T>::end()
+{
+    return Iterator(_size, _data);
 }
 
 template<class T>

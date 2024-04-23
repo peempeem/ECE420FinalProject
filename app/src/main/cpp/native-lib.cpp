@@ -12,6 +12,7 @@ JNIEXPORT void JNICALL
 Java_com_example_ece420finalproject_MainActivity_initCPP(JNIEnv* env, jobject ob)
 {
     AudioAnalyzer::init();
+    ImageAnalysis::init();
 }
 
 extern "C"

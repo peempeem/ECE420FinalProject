@@ -1,23 +1,68 @@
 #include "detection.h"
 #include "math.h"
 #include "../util/log.h"
+#include "img_storage.h"
 #include <map>
 
 #define LINE_ACCUMULATION_ANGLES 200
+#define OBJ_RTABLE_ANGLES 100
+#define RTABLE_THRESHOLD 10
 
-void getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineData>& allLines) {
-    static Matrix2D<int> accumulation;
-    static float cosValues[LINE_ACCUMULATION_ANGLES];
-    static float sinValues[LINE_ACCUMULATION_ANGLES];
-    static bool allocated = false;
+static float cosValues[LINE_ACCUMULATION_ANGLES];
+static float sinValues[LINE_ACCUMULATION_ANGLES];
 
-    if (!allocated) {
-        for (unsigned i = 0; i < LINE_ACCUMULATION_ANGLES; ++i) {
-            cosValues[i] = cosf(M_PI * i / (float) LINE_ACCUMULATION_ANGLES);
-            sinValues[i] = sinf(M_PI * i / (float) LINE_ACCUMULATION_ANGLES);
+std::vector<std::vector<Float2>> rTables;
+
+void train(Matrix2D<int>& encoding, int threshold)
+{
+    Matrix2D<Float2> grad;
+    encoding.gradient(grad);
+
+    float centerX = encoding.width() / 2.0f;
+    float centerY = encoding.height() / 2.0f;
+
+    rTables.emplace_back(OBJ_RTABLE_ANGLES, Float2(0, 0));
+    std::vector<Float2>& rTable = rTables.back();
+
+    for (unsigned y = 0; y < encoding.height(); ++y)
+    {
+        for (unsigned x = 0; x < encoding.width(); ++x)
+        {
+            Float2& data = grad.at(y, x);
+            if (data.magnitude() >= threshold)
+            {
+                unsigned angle = (unsigned) ((OBJ_RTABLE_ANGLES - 1) * (0.5f + (data.atan2() / (2 * M_PI))));
+                rTable.at(angle) = Float2(y - centerY, x - centerX);
+            }
         }
-        allocated = true;
     }
+}
+
+#define loadRTable(loadEncoding)                                                    \
+{                                                                                   \
+    Matrix2D<int> encoding(sizeof(loadEncoding) / sizeof(loadEncoding[0]),          \
+                           sizeof(loadEncoding[0]) / sizeof(loadEncoding[0][0]),    \
+                           (const int *) loadEncoding);                             \
+    train(encoding, RTABLE_THRESHOLD);                                              \
+}
+
+void Detection::init()
+{
+    for (unsigned i = 0; i < LINE_ACCUMULATION_ANGLES; ++i)
+    {
+        cosValues[i] = cosf(M_PI * i / (float) LINE_ACCUMULATION_ANGLES);
+        sinValues[i] = sinf(M_PI * i / (float) LINE_ACCUMULATION_ANGLES);
+    }
+
+    loadRTable(noteEncoding);
+    loadRTable(trebleEncoding);
+    loadRTable(bassEncoding);
+    loadRTable(sharpEncoding);
+    loadRTable(flatEncoding);
+}
+
+void Detection::getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineData>& allLines) {
+    static Matrix2D<int> accumulation;
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -25,12 +70,6 @@ void getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineDa
     int rmax = sqrtf(img.rows * img.rows + img.cols * img.cols);
     accumulation.resize(LINE_ACCUMULATION_ANGLES, 2 * rmax);
     accumulation.fill(0);
-
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    LOGD(TAG, "Zero Fill: %lld", duration.count());
-
-    start = std::chrono::high_resolution_clock::now();
 
     // accumulation
     for (unsigned r = 0; r < img.rows; ++r) {
@@ -46,16 +85,13 @@ void getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineDa
         }
     }
 
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    LOGD(TAG, "Accumulation: %lld", duration.count());
-
-    start = std::chrono::high_resolution_clock::now();
-
-    auto rawPeaks = accumulation.findPeaks(250, 16, 8);
+    auto rawPeaks = accumulation.peaks(250, 16, 8);
 
     for (auto& peak : rawPeaks)
-        allLines.emplace_back(M_PI * peak.point.y / (float) LINE_ACCUMULATION_ANGLES,(int) peak.point.x - rmax);
+        allLines.emplace_back(
+                M_PI * peak.point.y / (float) LINE_ACCUMULATION_ANGLES,
+                peak.point.x - rmax,
+                0);
 
     struct PointPeak
     {
@@ -89,233 +125,132 @@ void getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineDa
         pointPeaks.emplace_back(rawPeaks[i], yMid);
     }
 
-    if (pointPeaks.size() < 5)
-        return;
-
-    std::sort(pointPeaks.begin(), pointPeaks.end());
-
-    std::vector<unsigned> pointDiff(pointPeaks.size() - 1);
-    for (unsigned i = 0; i < pointDiff.size(); ++i)
-        pointDiff[i] = pointPeaks[i + 1].yMid - pointPeaks[i].yMid;
-
-    for (unsigned i = 0; i < pointPeaks.size(); ++i)
+    if (pointPeaks.size() >= 5)
     {
-        if (i > pointPeaks.size() - 5)
-            break;
+        std::sort(pointPeaks.begin(), pointPeaks.end());
 
-        float cmp1 = pointDiff[i];
-        bool found = true;
+        std::vector<unsigned> pointDiff(pointPeaks.size() - 1);
+        for (unsigned i = 0; i < pointDiff.size(); ++i)
+            pointDiff[i] = pointPeaks[i + 1].yMid - pointPeaks[i].yMid;
 
-
-        for (unsigned j = 0; j < 4; ++j)
+        for (unsigned i = 0; i < pointPeaks.size(); ++i)
         {
-            float cmp2 = pointDiff[i + j];
-            float cmp = cmp2 / cmp1;
-            if (cmp < 0.9 || cmp > 1.1)
-            {
-                found = false;
+            if (i > pointPeaks.size() - 5)
                 break;
-            }
-        }
 
-        if (found)
-        {
-            for (unsigned j = 0; j < 5; ++j)
+            float cmp1 = pointDiff[i];
+            bool found = true;
+
+
+            for (unsigned j = 0; j < 4; ++j)
             {
-                Matrix2D<int>::Peak& peak = pointPeaks[i + j].peak;
-                noteLines.emplace_back(M_PI * peak.point.y / (float) LINE_ACCUMULATION_ANGLES,
-                                  (int) peak.point.x - rmax);
+                float cmp2 = pointDiff[i + j];
+                float cmp = cmp2 / cmp1;
+                if (cmp < 0.9 || cmp > 1.1)
+                {
+                    found = false;
+                    break;
+                }
+            }
+
+            if (found)
+            {
+                for (unsigned j = 0; j < 5; ++j)
+                {
+                    Matrix2D<int>::Peak& peak = pointPeaks[i + j].peak;
+                    noteLines.emplace_back(
+                            M_PI * peak.point.y / (float) LINE_ACCUMULATION_ANGLES,
+                            peak.point.x - rmax,
+                            pointDiff[i + j]);
+                }
+            }
+
+            //LOGD(TAG, "%d %d", pointPeaks[i].yMid, (i < pointDiff.size()) ? pointDiff[i] : -1);
+        }
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    LOGD(TAG, "Line Detection: %lld", duration.count());
+}
+
+
+bool Detection::scan(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<Matrix2D<int>>& scans)
+{
+    auto start = std::chrono::high_resolution_clock::now();
+
+    bool ret;
+
+    if (noteLines.size() >= 5)
+    {
+        LOGD(TAG, "spacing:%f", noteLines[0].spacing);
+
+        int threshold = 200;
+        float scales[5] = {
+                noteLines[0].spacing / 16.5f, noteLines[0].spacing / 10.0f,
+                noteLines[0].spacing / 10.0f,noteLines[0].spacing / 15.0f,
+                noteLines[0].spacing / 10.0f
+        };
+
+        Matrix2D<uint8_t> matFromImg(img);
+        Matrix2D<Float2> grad;
+        matFromImg.gradient(grad);
+
+        for (unsigned i = 0; i < rTables.size(); ++i)
+        {
+            if (scans.size() <= i)
+                scans.emplace_back(grad.height(), grad.width(), 0);
+            else
+            {
+                scans[i].resize(grad.height(), grad.width());
+                scans[i].fill(0);
             }
         }
 
-        LOGD(TAG, "%d %d", pointPeaks[i].yMid, (i < pointDiff.size()) ? pointDiff[i] : -1);
-    }
+        unsigned long countg = 0;
+        unsigned long countb = 0;
 
+        for (unsigned y = 0; y < matFromImg.height(); ++y)
+        {
+            for (unsigned x = 0; x < matFromImg.width(); ++x)
+            {
+                Float2& data = grad.at(y, x);
+                if (data.magnitude() < threshold)
+                    continue;
 
+                unsigned angle = (unsigned) ((OBJ_RTABLE_ANGLES - 1) * (0.5f + (data.atan2() / (2 * M_PI))));
 
-
-//    for (auto& peak : rawPeaks)
-//        data.emplace_back(((float) M_PI) * peak.point.y / (float) LINE_ACCUMULATION_ANGLES, (int) peak.point.x - rmax);
-
-
-
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    LOGD(TAG, "Peaks: %lld", duration.count());
-
-
-//    unsigned dBlockX = 10;
-//    unsigned dBlockY = 4;
-//    unsigned maxBlockX = ceilf(2 * rmax / (float) dBlockX);
-//    unsigned maxBlockY = ceilf(314 / (float) dBlockY);
-//
-//    for (unsigned blockY = 0; blockY < maxBlockY; ++blockY)
-//    {
-//        unsigned yMin = blockY * dBlockY;
-//        unsigned kyMax = yMax + dBlockY;
-//        if (yMax >= 314)
-//            yMax = 313;
-//
-//        for (unsigned blockX = 0; blockX < maxBlockX; ++blockX)
-//        {
-//            unsigned xMin =
-//            unsigned xMax = (blockX + 1) * dBlockX;
-//            if (xMax >= 2 * rmax)
-//                xMax = 2 * rmax - 1;
-//
-//            for (unsigned y = blockY * db)
-//        }
-//    }
-
-}
-
-void get_gradient(cv::Mat& pic, std::vector<std::vector<std::vector<float>>>& grad)
-{
-    int16_t x_kernel[3][3] = {{-1,0,1},{-1,0,1},{-1,0,1}};
-    int16_t y_kernel[3][3] = {{-1,-1,-1},{0,0,0},{1,1,1}};
-
-
-    for (int i = 0; i<pic.rows; i++){
-        for( int j=0; j<pic.cols; j++){
-
-            int startx = i-1;
-            int endx = i+1;
-            int starty = j-1;
-            int endy = j+1;
-
-            for(int k = starty; k<=endy;k++) {
-                for (int l = startx; l <= endx; l++) {
-                    if(k>=0 && l>=0 && k<pic.cols && l<pic.rows){
-                        grad[i][j][0]+=x_kernel[l-i+1][k-j+1]*pic.at<int>(l,k);
-                        grad[i][j][1]+=y_kernel[l-i+1][k-j+1]*pic.at<int>(l,k);
+                for (unsigned i = 0; i < rTables.size(); ++i)
+                {
+                    Float2& rtd = rTables[i][angle];
+                    int yy = y - rtd.y * scales[i];
+                    if (yy < 0 || yy >= grad.height())
+                    {
+                        countb++;
+                        continue;
                     }
-                }
-            }
-        }
-    }
-}
 
-void train(cv::Mat& pic, int threshold, std::vector<std::vector<float>>& rtable)
-{
-    //static cv::Mat pic;
-    //cv::cvtColor(img, pic, cv::COLOR_BGRA2GRAY);
-
-    std::vector<std::vector<std::vector<float>>> traingrad(pic.rows,std::vector<std::vector<float>>(pic.cols,std::vector<float>(2)));
-
-    get_gradient(pic, traingrad);
-
-    int center[2]={(int) pic.rows/2, (int) pic.cols/2};
-
-    float gradient_mag;
-    int direction;
-
-    for(int i = 1; i < pic.rows-1; i++){
-        for(int j = 1; j<pic.cols-1; j++){
-            gradient_mag=pow(pow(traingrad[i][j][0],2)+pow(traingrad[i][j][1],2),0.5);
-            if (gradient_mag>threshold){
-                direction = (int) atan2f(traingrad[i][j][0],traingrad[i][j][1])/M_PI*180;
-                if(direction<0)
-                    direction+=360;
-                rtable[direction][0]=i-center[0];
-                rtable[direction][1]=j-center[1];
-
-            }
-        }
-    }
-}
-
-
-void scan(cv::Mat& img,
-          std::vector<std::vector<std::vector<float>>>& scan_out,
-          std::vector<std::vector<float>>& rtablenote,
-          std::vector<std::vector<float>>& rtabletreble,
-          std::vector<std::vector<float>>& rtablebass,
-          std::vector<std::vector<float>>& rtablesharp,
-          std::vector<std::vector<float>>& rtableflat,
-          float spacing)
-{
-    int threshold = 400;
-    int xcoord;
-    int ycoord;
-    int direction;
-    float gradient_mag;
-
-    float scales[5] = {spacing/16.5f, spacing/10, spacing/10,spacing/15, spacing/10};
-    std::vector<std::vector<std::vector<float>>> rtables = {rtablenote, rtabletreble, rtablebass, rtablesharp, rtableflat};
-
-
-    std::vector<std::vector<std::vector<float>>> gradient_pic (img.rows,std::vector<std::vector<float>>(img.cols,std::vector<float>(2)));
-    get_gradient(img, gradient_pic);
-
-    for(int i = 1; i<img.rows-1; i++){
-        for(int j = 1; j<img.cols-1; j++){
-            gradient_mag=pow(pow(gradient_pic[i][j][0],2)+pow(gradient_pic[i][j][1],2),0.5);
-            if (gradient_mag>threshold){
-                direction = (int) atan2f(gradient_pic[i][j][0],gradient_pic[i][j][1])/M_PI*180;
-                if (direction<0)
-                    direction+=360;
-                for(int k = 0; k<5; k++){
-                    xcoord = (int) (i - rtables[k][direction][0]*scales[k]);
-                    ycoord = (int) (j - rtables[k][direction][1]*scales[k]);
-                    for(int xvar = xcoord-1; xvar<xcoord+2; xvar++){
-                        for(int yvar = ycoord-1; yvar<ycoord+2; yvar++){
-                            if(xvar>=0 && yvar>=0 && xvar<img.rows && yvar<img.cols){
-                                scan_out[xvar][yvar][k]+=100;
-                            }
-                        }
+                    int xx = x - rtd.x * scales[i];
+                    if (xx < 0 || xx >= grad.width())
+                    {
+                        countb++;
+                        continue;
                     }
+
+                    scans[i].at(yy, xx)++;
+                    countg++;
                 }
             }
         }
+        LOGD(TAG, "%lu %lu", countg, countb);
+        ret = true;
     }
-}
+    else
+        ret = false;
 
-int ddpeaks(std::vector<std::vector<float>>& array,
-             std::vector<std::vector<int>>& peaks,
-             int threshold, float spacing, int cols, int rows)
-{
-    int rightbound;
-    int leftbound;
-    int topbound;
-    int bottombound;
-    int areamax;
-    int peakidx = 0;
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    LOGD(TAG, "Scan: %lld", duration.count());
 
-    for(int j = 1; j<cols-1; j++){
-        for(int i = 1; i<rows-1; i++){
-            if(array[i][j]>threshold){
-                topbound = (int)(i-spacing*1.3f);
-                bottombound = (int)(i+spacing*1.3f);
-                leftbound=(int)(j-spacing*1.3f);
-                rightbound=(int)(j+spacing*1.3f);
-
-                if(leftbound<3)
-                    leftbound=3;
-                if(rightbound>cols-3)
-                    rightbound=cols-3;
-                if(topbound<3)
-                    topbound=3;
-                if(bottombound>rows-3)
-                    bottombound=rows-3;
-
-                areamax=0;
-
-                for(int l = leftbound; l<rightbound; l++){
-                    for(int m = topbound; m<bottombound; m++){
-                        if(array[m][l]>areamax)
-                            areamax=array[m][l];
-                    }
-                }
-
-                if (array[i][j]==areamax){
-                    peaks[peakidx][0]=i;
-                    peaks[peakidx][1]=j;
-                    peakidx+=1;
-                    array[i][j]+=1;
-                }
-
-            }
-        }
-    }
-    return peakidx;
+    return ret;
 }

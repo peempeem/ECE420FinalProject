@@ -1,21 +1,35 @@
 #pragma once
 
 #include <vector>
+#include <opencv2/core.hpp>
+#include <math.h>
+
+struct Float2
+{
+    float y;
+    float x;
+
+    Float2() {}
+    Float2(float y, float x) : y(y), x(x) {}
+
+    float magnitude() { return sqrtf(x * x + y * y); }
+    float atan2() { return atan2f(y, x); }
+};
 
 template<class T>
 class Matrix2D
 {
     public:
-        class Itterator
+        class Iterator
         {
             public:
-                Itterator(unsigned idx, T* data);
+                Iterator(unsigned idx, T* data);
 
                 T& operator*();
                 T* operator->();
-                Itterator& operator++();
-                Itterator operator++(int);
-                bool operator!=(const Itterator& other) const;
+                Iterator& operator++();
+                Iterator operator++(int);
+                bool operator!=(const Iterator& other) const;
                 unsigned idx() const;
 
             private:
@@ -44,6 +58,8 @@ class Matrix2D
         Matrix2D();
         Matrix2D(unsigned y, unsigned x);
         Matrix2D(unsigned y, unsigned x, const T& data);
+        Matrix2D(unsigned y, unsigned x, const T* data);
+        Matrix2D(cv::Mat& mat);
 
         unsigned width();
         unsigned height();
@@ -54,10 +70,11 @@ class Matrix2D
         void resize(unsigned y, unsigned x);
         void fill(const T& data);
 
-        std::vector<Peak> findPeaks(T min, unsigned ky=20, unsigned kx=6);
+        std::vector<Peak> peaks(T min, unsigned ky=20, unsigned kx=6);
+        void gradient(Matrix2D<Float2>& grad);
 
-        Itterator begin();
-        Itterator end();
+        Iterator begin();
+        Iterator end();
 
     private:
         unsigned _y;
