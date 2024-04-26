@@ -20,4 +20,5 @@ namespace Detection
     void init();
     void getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineData>& allLines);
     bool scan(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<Matrix2D<int>>& scans);
+    cv::String getNote(std::vector<LineData>& noteLines, int position);
 }

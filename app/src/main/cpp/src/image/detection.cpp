@@ -8,6 +8,8 @@
 #define OBJ_RTABLE_ANGLES 100
 #define RTABLE_THRESHOLD 10
 
+#define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
+
 static float cosValues[LINE_ACCUMULATION_ANGLES];
 static float sinValues[LINE_ACCUMULATION_ANGLES];
 
@@ -174,6 +176,51 @@ void Detection::getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::ve
     LOGD(TAG, "Line Detection: %lld", duration.count());
 }
 
+cv::String Detection::getNote(std::vector<LineData>& noteLines, int position)
+{
+    float a;
+    float b;
+    int y0;
+    int y1;
+    int y2;
+    int distance;
+    int prev_distance=1000;
+    int noteidx;
+    int spacing=noteLines[0].spacing;
+
+    std::vector<int>centers=std::vector<int>(noteLines.size()/5);
+    std::vector<cv::String>noteMap={"G","F","E","D","C","B","A"};
+
+    for(int i = 0; i<centers.size(); i++){
+        a = cosf(noteLines[5*i+2].theta);
+        b = sinf(noteLines[5*i+2].theta);
+
+        y0 = b * noteLines[5*i+2].distance;
+
+        y1 = y0 + (int) 10000 * a;
+        y2 = y0 - (int) 10000 * a;
+        centers[i]=(int)round((y1+y2)/2);
+    }
+
+    for(int i = 0; i<centers.size(); i++){
+        distance = position-centers[i];
+        if (abs(distance)>abs(prev_distance)){
+            distance=prev_distance;
+        }
+        else{
+            prev_distance=distance;
+        }
+    }
+
+    noteidx=(DIV_ROUND_CLOSEST(distance, DIV_ROUND_CLOSEST(spacing,2))+3)%7;
+
+    while(noteidx<0)
+        noteidx+=7;
+
+    return noteMap[noteidx];
+
+
+}
 
 bool Detection::scan(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<Matrix2D<int>>& scans)
 {
