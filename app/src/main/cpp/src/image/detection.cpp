@@ -311,7 +311,7 @@ void Detection::getMusicLines(cv::Mat& img, std::vector<Music>& musicLines, std:
 
         musicLines.emplace_back();
 
-        musicLines.back().spacing = (burst.back().peak.point.x - burst.front().peak.point.x) / burst.size();
+        musicLines.back().spacing = (burst.back().peak.point.x - burst.front().peak.point.x) / (burst.size() - 1);
         musicLines.back().angle = avgAngle;
         musicLines.back().middle = distAvg;
 
@@ -394,6 +394,8 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
     Matrix2D<Float2> grad;
     matFromImg.gradient(grad);
 
+    LOGD(TAG, "angle: %f", musicLines.front().angle);
+
     for (unsigned i = 0; i < rTables.size(); ++i)
     {
         if (scans.size() <= i)
@@ -420,10 +422,12 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
                 std::vector<Float2>& rTableData = rTables[i][angle];
                 for (auto& f2 : rTableData)
                 {
+                    //float ry = f2.y * cosf(ang) + f2.x * sinf(ang);
                     int yy = y - f2.y * scales[i];
                     if (yy < 0 || yy >= grad.height())
                         continue;
 
+                    //float rx = f2.x * cosf(ang) - f2.y * sinf(ang);
                     int xx = x - f2.x * scales[i];
                     if (xx < 0 || xx >= grad.width())
                         continue;
@@ -559,7 +563,7 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
             continue;
 
         if (musicLines[idx].clef != Music::Unknown
-            && fabs((musicLines[idx].clefPos.x - peak.point.x) / musicLines.front().spacing) < 4)
+            && fabs((musicLines[idx].clefPos.x - peak.point.x) / musicLines.front().spacing) < 3)
             continue;
 
         musicLines[idx].notes.emplace_back();
@@ -575,8 +579,8 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
         Pointf p(peak.point.x, peak.point.y);
         float noteDist = lineAngleToPointDistance(lines[idx], p) / (musicLines[idx].spacing / 2.0f);
 
-        float x = cosf(musicLines[idx].angle) * musicLines[idx].distance[2];
-        float y = sinf(musicLines[idx].angle) * musicLines[idx].distance[2];
+        float x = cosf(musicLines[idx].angle) * musicLines[idx].middle;
+        float y = sinf(musicLines[idx].angle) * musicLines[idx].middle;
         float yy = y - (peak.point.x - x) * tanf(musicLines[idx].angle - M_PI / 2.0f);
 
         int nd = (peak.point.y > yy) ? -roundf(noteDist) : roundf(noteDist);
@@ -606,6 +610,11 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
         }
 
         musicLines[idx].notes.back().data = &*scaleIT;
+
+        if (scaleIT->midi == musicNote.fromName("C3")->midi)
+        {
+            LOGD(TAG, "%d", nd);
+        }
     }
 
     return true;

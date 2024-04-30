@@ -23,6 +23,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         src/audio/audio.cpp
         src/audio/note.h
         src/audio/note.cpp
+        src/audio/tdpsola.cpp
+        src/audio/tdpsola.h
         kiss_fft/kiss_fft.h
         kiss_fft/kiss_fft.c)
 
