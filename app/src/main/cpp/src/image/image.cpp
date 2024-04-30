@@ -27,7 +27,7 @@ void ImageAnalysis::init()
     Detection::init();
 }
 
-void drawLines(cv::Mat img, std::vector<Detection::LineData> lines, cv::Scalar color)
+void drawLines(cv::Mat& img, std::vector<Detection::LineData> lines, cv::Scalar color)
 {
     for (auto& line : lines)
     {
@@ -51,12 +51,38 @@ void drawLines(cv::Mat img, std::vector<Detection::LineData> lines, cv::Scalar c
     }
 }
 
+void drawMusic(cv::Mat& img, std::vector<Detection::Music> musicLines)
+{
+    for (auto& musicLine : musicLines)
+    {
+        float a = cosf(musicLine.angle);
+        float b = sinf(musicLine.angle);
+
+        for (unsigned i = 0; i < 5; ++i)
+        {
+            int x0 = a * musicLine.distance[i];
+            int y0 = b * musicLine.distance[i];
+
+            int x1 = x0 + (int) 10000 * (-b);
+            int y1 = y0 + (int) 10000 * a;
+
+            int x2 = x0 - (int) 10000 * (-b);
+            int y2 = y0 - (int) 10000 * a;
+
+            cv::line(img,
+                     cv::Point(x1, y1),
+                     cv::Point(x2, y2),
+                     cv::Scalar(255, 0, 255, 255),
+                     1);
+        }
+    }
+}
+
 void ImageAnalysis::processImage(cv::Mat& img)
 {
     static cv::Mat undistorted;
     static cv::Mat gray;
     static cv::Mat adapt;
-    static std::vector<Matrix2D<int>> scans;
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -76,13 +102,13 @@ void ImageAnalysis::processImage(cv::Mat& img)
 
         useUndistort = true;
         calibMtx.unlock();
-        cv::cvtColor(undistorted, gray, cv::COLOR_RGBA2GRAY);
+        cv::cvtColor(undistorted, gray, cv::COLOR_RGB2GRAY);
     }
     else
     {
         useUndistort = false;
         calibMtx.unlock();
-        cv::cvtColor(img, gray, cv::COLOR_RGBA2GRAY);
+        cv::cvtColor(img, gray, cv::COLOR_RGB2GRAY);
     }
 
     cv::adaptiveThreshold(
@@ -94,13 +120,12 @@ void ImageAnalysis::processImage(cv::Mat& img)
             3,
             3);
 
-    std::vector<Detection::LineData> noteLines;
+    std::vector<Detection::Music> musicLines;
     std::vector<Detection::LineData> allLines;
-    getLines(adapt, noteLines, allLines);
+    getMusicLines(adapt, musicLines, allLines);
 
-    bool scanned = Detection::scan(gray, noteLines, scans);
-
-    //cv::cvtColor(adapt, img, cv::COLOR_GRAY2RGBA);
+    cv::Mat img2 = Detection::scan(gray, musicLines);
+    //cv::cvtColor(histeq, img, cv::COLOR_GRAY2RGBA);
 
     /////////////////////////////////////////
     ///////// End of Implementation /////////
@@ -115,19 +140,54 @@ void ImageAnalysis::processImage(cv::Mat& img)
     if (useUndistort)
         undistorted.copyTo(img);
 
-    if (scanned)
-    {
-        for (auto& peak : scans[0].peaks(5, 8, 8))
-        {
-            cv::circle(img, cv::Point(peak.point.x, peak.point.y), 20, cv::Scalar(255, 0, 255, 255));
-            cv::putText(img,Detection::getNote(noteLines,peak.point.y),cv::Point(peak.point.x,peak.point.y),cv::FONT_HERSHEY_COMPLEX,2,cv::Scalar(255,0,255,255),1);
-            LOGD(TAG, "%d", peak.energy);
-        }
-    }
+//    if (scanned)
+//    {
+//        for (auto& peak : scans[0].peaks(36, 6, 6))
+//        {
+//            cv::circle(img,
+//                       cv::Point(peak.point.x, peak.point.y),
+//                       20,
+//                       cv::Scalar(255, 0, 255, 255));
+//
+//            cv::putText(img,
+//                        Detection::getNote(noteLines,peak.point.y),
+//                        cv::Point(peak.point.x,peak.point.y),
+//                        cv::FONT_HERSHEY_COMPLEX,
+//                        2,
+//                        cv::Scalar(255,0,255,255),
+//                        1);
+//        }
+//    }
 
 
     drawLines(img, allLines, cv::Scalar(0, 255, 0, 255));
-    drawLines(img, noteLines, cv::Scalar(255, 0, 255, 255));
+    drawMusic(img, musicLines);
+
+    for (auto& line : musicLines)
+    {
+        if (line.clef != Detection::Music::Treble)
+        {
+            cv::circle(img,
+                       cv::Point(line.clefPos.x, line.clefPos.y),
+                       20,
+                       cv::Scalar(0, 255, 255, 255));
+        }
+        else if (line.clef != Detection::Music::Bass)
+        {
+            cv::circle(img,
+                       cv::Point(line.clefPos.x, line.clefPos.y),
+                       20,
+                       cv::Scalar(255, 255, 0, 255));
+        }
+
+        for (auto& note : line.notes)
+        {
+            cv::circle(img,
+                       cv::Point(note.position.x, note.position.y),
+                       20,
+                       cv::Scalar(0, 0, 0, 255));
+        }
+    }
 
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -156,7 +216,7 @@ void ImageAnalysis::calibrateCamera(cv::Mat& img)
     std::vector<cv::Point2f> imgPts;
     if (cv::findChessboardCorners(
             gray,
-            cv::Size(7, 7),
+            cv::Size(CHECKERBOARD_X, CHECKERBOARD_Y),
             imgPts,
             cv::CALIB_CB_ADAPTIVE_THRESH | cv::CALIB_CB_FAST_CHECK | cv::CALIB_CB_NORMALIZE_IMAGE))
     {

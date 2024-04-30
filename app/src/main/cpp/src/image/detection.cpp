@@ -3,17 +3,20 @@
 #include "../util/log.h"
 #include "img_storage.h"
 #include <map>
+#include <list>
 
-#define LINE_ACCUMULATION_ANGLES 200
-#define OBJ_RTABLE_ANGLES 100
-#define RTABLE_THRESHOLD 10
+#define LINE_ACCUMULATION_ANGLES 360
+#define OBJ_RTABLE_ANGLES 10
+#define OBJ_RTABLE_MAX_OVERLAP 100
+#define RTABLE_THRESHOLD 100
 
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
 static float cosValues[LINE_ACCUMULATION_ANGLES];
 static float sinValues[LINE_ACCUMULATION_ANGLES];
+static std::vector<unsigned> objPointCounts;
 
-std::vector<std::vector<Float2>> rTables;
+std::vector<std::vector<std::vector<Float2>>> rTables;
 
 void train(Matrix2D<int>& encoding, int threshold)
 {
@@ -23,8 +26,41 @@ void train(Matrix2D<int>& encoding, int threshold)
     float centerX = encoding.width() / 2.0f;
     float centerY = encoding.height() / 2.0f;
 
-    rTables.emplace_back(OBJ_RTABLE_ANGLES, Float2(0, 0));
-    std::vector<Float2>& rTable = rTables.back();
+    rTables.emplace_back(OBJ_RTABLE_ANGLES, std::vector<Float2>());
+    std::vector<std::vector<Float2>>& rTable = rTables.back();
+    std::vector<std::map<float, Float2, std::greater<float>>> tempRT(OBJ_RTABLE_ANGLES);
+
+    unsigned topY = std::numeric_limits<unsigned>::max();
+    for (unsigned y = 0; y < encoding.height(); ++y)
+    {
+        for (unsigned x = 0; x < encoding.width(); ++x)
+        {
+            if (encoding.at(y, x) != std::numeric_limits<uint8_t>::max())
+            {
+                topY = y;
+                break;
+            }
+        }
+        if (topY != std::numeric_limits<unsigned>::max())
+            break;
+    }
+
+    unsigned botY = std::numeric_limits<unsigned>::max();
+    for (int y = encoding.height() - 1; y >= 0; --y)
+    {
+        for (unsigned x = 0; x < encoding.width(); ++x)
+        {
+            if (encoding.at(y, x) != std::numeric_limits<uint8_t>::max())
+            {
+                botY = y;
+                break;
+            }
+        }
+        if (botY != std::numeric_limits<unsigned>::max())
+            break;
+    }
+
+    float height = botY - topY;
 
     for (unsigned y = 0; y < encoding.height(); ++y)
     {
@@ -34,10 +70,25 @@ void train(Matrix2D<int>& encoding, int threshold)
             if (data.magnitude() >= threshold)
             {
                 unsigned angle = (unsigned) ((OBJ_RTABLE_ANGLES - 1) * (0.5f + (data.atan2() / (2 * M_PI))));
-                rTable.at(angle) = Float2(y - centerY, x - centerX);
+                tempRT[angle].insert({data.magnitude(), Float2((y - centerY) / height, (x - centerX) / height)});
             }
         }
     }
+
+    unsigned count = 0;
+    for (unsigned i = 0; i < OBJ_RTABLE_ANGLES; ++i)
+    {
+        unsigned pulled = 0;
+        for (auto& item : tempRT[i])
+        {
+            if (pulled >= OBJ_RTABLE_MAX_OVERLAP)
+                break;
+            rTable[i].emplace_back(item.second);
+            pulled++;
+            count++;
+        }
+    }
+    objPointCounts.push_back(count);
 }
 
 #define loadRTable(loadEncoding)                                                    \
@@ -63,10 +114,27 @@ void Detection::init()
     loadRTable(flatEncoding);
 }
 
-void Detection::getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<LineData>& allLines) {
-    static Matrix2D<int> accumulation;
+bool intersection(Detection::Linef& l1, Detection::Linef& l2, Detection::Pointf& p)
+{
+    if (fabs(l1.m - l2.m) < (float) 1e-6)
+        return false;
+    p.x = (l2.b - l1.b) / (l1.m - l2.m);
+    p.y = l1.m * p.x + l1.b;
+    return true;
+}
 
-    auto start = std::chrono::high_resolution_clock::now();
+float lineToPointDistance(Detection::Linef& line, Detection::Pointf& point)
+{
+    return fabs((-line.m * point.x) + point.y - line.b) / sqrtf(line.m * line.m + line.b * line.b);
+}
+
+float lineAngleToPointDistance(Detection::Linef& line, Detection::Pointf& point)
+{
+    return fabs(cosf(line.m) * (line.b - point.y) - sinf(line.m) * -point.x);
+}
+
+void Detection::getMusicLines(cv::Mat& img, std::vector<Music>& musicLines, std::vector<LineData>& allLines) {
+    static Matrix2D<int> accumulation;
 
     // diagonal of image
     int rmax = sqrtf(img.rows * img.rows + img.cols * img.cols);
@@ -87,7 +155,7 @@ void Detection::getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::ve
         }
     }
 
-    auto rawPeaks = accumulation.peaks(250, 16, 8);
+    auto rawPeaks = accumulation.peaks(300, 20, 10);
 
     for (auto& peak : rawPeaks)
         allLines.emplace_back(
@@ -127,53 +195,99 @@ void Detection::getLines(cv::Mat& img, std::vector<LineData>& noteLines, std::ve
         pointPeaks.emplace_back(rawPeaks[i], yMid);
     }
 
-    if (pointPeaks.size() >= 5)
+    std::sort(pointPeaks.begin(), pointPeaks.end());
+
+    std::list<std::list<PointPeak>> lineBursts;
+    lineBursts.emplace_back();
+    for (auto& pp : pointPeaks)
     {
-        std::sort(pointPeaks.begin(), pointPeaks.end());
-
-        std::vector<unsigned> pointDiff(pointPeaks.size() - 1);
-        for (unsigned i = 0; i < pointDiff.size(); ++i)
-            pointDiff[i] = pointPeaks[i + 1].yMid - pointPeaks[i].yMid;
-
-        for (unsigned i = 0; i < pointPeaks.size(); ++i)
+        if (lineBursts.back().empty() || pp.yMid - lineBursts.back().back().yMid < 0.15f * accumulation.height())
+            lineBursts.back().emplace_back(pp);
+        else
         {
-            if (i > pointPeaks.size() - 5)
-                break;
-
-            float cmp1 = pointDiff[i];
-            bool found = true;
-
-
-            for (unsigned j = 0; j < 4; ++j)
-            {
-                float cmp2 = pointDiff[i + j];
-                float cmp = cmp2 / cmp1;
-                if (cmp < 0.9 || cmp > 1.1)
-                {
-                    found = false;
-                    break;
-                }
-            }
-
-            if (found)
-            {
-                for (unsigned j = 0; j < 5; ++j)
-                {
-                    Matrix2D<int>::Peak& peak = pointPeaks[i + j].peak;
-                    noteLines.emplace_back(
-                            M_PI * peak.point.y / (float) LINE_ACCUMULATION_ANGLES,
-                            peak.point.x - rmax,
-                            pointDiff[i + j]);
-                }
-            }
-
-            //LOGD(TAG, "%d %d", pointPeaks[i].yMid, (i < pointDiff.size()) ? pointDiff[i] : -1);
+            lineBursts.emplace_back();
+            lineBursts.back().emplace_back(pp);
         }
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    LOGD(TAG, "Line Detection: %lld", duration.count());
+    lineBursts.remove_if([](const auto& burst) { return burst.size() < 5; });
+
+    for (auto& burst : lineBursts)
+    {
+        while (burst.size() > 5)
+        {
+            std::vector<std::list<PointPeak>::iterator> iterators;
+            float angleAvg = 0;
+            for (auto it = burst.begin(); it != burst.end(); ++it)
+            {
+                iterators.push_back(it);
+                angleAvg += it->peak.point.y;
+            }
+
+            std::vector<float> newAvg(burst.size());
+
+            for (unsigned i = 0; i < burst.size(); ++i)
+                newAvg[i] = fabs(iterators[i]->peak.point.y - (angleAvg - iterators[i]->peak.point.y) / (burst.size() - 1));
+
+            burst.erase(iterators[std::max_element(newAvg.begin(), newAvg.end()) - newAvg.begin()]);
+        }
+
+        unsigned min = std::numeric_limits<unsigned>::max();
+        unsigned max = std::numeric_limits<unsigned>::min();
+        float avgAngle = 0;
+        float distAvg = 0;
+        for (auto& pp : burst)
+        {
+            if (pp.peak.point.y < min)
+                min = pp.peak.point.y;
+            else if (pp.peak.point.y > max)
+                max = pp.peak.point.y;
+            avgAngle += pp.peak.point.y;
+            distAvg += pp.peak.point.x;
+        }
+
+        if (M_PI * (max - min) / (float) LINE_ACCUMULATION_ANGLES > 3)
+            continue;
+
+        int diff[4];
+        auto it = burst.begin();
+        for (unsigned i = 0; i < 4; ++i)
+        {
+            int x1 = it->peak.point.x;
+            ++it;
+            int x2 = it->peak.point.x;
+            diff[i] = x2 - x1;
+        }
+
+        bool invalid = false;
+        for (unsigned i = 1; i < 4; ++i)
+        {
+            float dd = fabs(diff[i] / (float) diff[0]);
+            if (dd > 1.25f || dd < 0.75f)
+            {
+                invalid = true;
+                break;
+            }
+        }
+        if (invalid)
+            continue;
+
+        avgAngle = M_PI * (avgAngle / burst.size()) / (float) LINE_ACCUMULATION_ANGLES;
+        distAvg = (distAvg / burst.size()) - rmax;
+
+        musicLines.emplace_back();
+
+        musicLines.back().spacing = (burst.back().peak.point.x - burst.front().peak.point.x) / burst.size();
+        musicLines.back().angle = avgAngle;
+        musicLines.back().middle = distAvg;
+
+        unsigned i = 0;
+        for (auto& pp : burst)
+        {
+            musicLines.back().distance[i] = pp.peak.point.x - rmax;
+            ++i;
+        }
+    }
 }
 
 cv::String Detection::getNote(std::vector<LineData>& noteLines, int position)
@@ -218,86 +332,222 @@ cv::String Detection::getNote(std::vector<LineData>& noteLines, int position)
         noteidx+=7;
 
     return noteMap[noteidx];
-
-
 }
 
-bool Detection::scan(cv::Mat& img, std::vector<LineData>& noteLines, std::vector<Matrix2D<int>>& scans)
+cv::Mat Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
 {
-    auto start = std::chrono::high_resolution_clock::now();
+    static std::vector<Matrix2D<int>> scans;
 
-    bool ret;
+    if (musicLines.empty())
+        return cv::Mat();
 
-    if (noteLines.size() >= 5)
+    float scales[5] = {
+            musicLines.front().spacing,
+            musicLines.front().spacing * 7.2295f,
+            musicLines.front().spacing * 3.5245f,
+            musicLines.front().spacing / 15.0f,         // TODO
+            musicLines.front().spacing / 10.0f          // TODO
+    };
+    std::vector<unsigned> thresholds = {
+            (unsigned) (objPointCounts[0] * sqrtf(musicLines.front().spacing) / 12),
+            (unsigned) (objPointCounts[1] * sqrtf(musicLines.front().spacing) / 35),
+            (unsigned) (objPointCounts[2] * sqrtf(musicLines.front().spacing) / 20),
+            (unsigned) (objPointCounts[3] * sqrtf(musicLines.front().spacing) / 15),
+            (unsigned) (objPointCounts[4] * sqrtf(musicLines.front().spacing) / 15)
+    };
+
+    Matrix2D<uint8_t> matFromImg(img);
+    Matrix2D<Float2> grad;
+    matFromImg.gradient(grad);
+
+    for (unsigned i = 0; i < rTables.size(); ++i)
     {
-        LOGD(TAG, "spacing:%f", noteLines[0].spacing);
-
-        int threshold = 200;
-        float scales[5] = {
-                noteLines[0].spacing / 16.5f, noteLines[0].spacing / 10.0f,
-                noteLines[0].spacing / 10.0f,noteLines[0].spacing / 15.0f,
-                noteLines[0].spacing / 10.0f
-        };
-
-        Matrix2D<uint8_t> matFromImg(img);
-        Matrix2D<Float2> grad;
-        matFromImg.gradient(grad);
-
-        for (unsigned i = 0; i < rTables.size(); ++i)
+        if (scans.size() <= i)
+            scans.emplace_back(grad.height(), grad.width(), 0);
+        else
         {
-            if (scans.size() <= i)
-                scans.emplace_back(grad.height(), grad.width(), 0);
-            else
-            {
-                scans[i].resize(grad.height(), grad.width());
-                scans[i].fill(0);
-            }
+            scans[i].resize(grad.height(), grad.width());
+            scans[i].fill(0);
         }
+    }
 
-        unsigned long countg = 0;
-        unsigned long countb = 0;
-
-        for (unsigned y = 0; y < matFromImg.height(); ++y)
+    for (unsigned y = 0; y < grad.height(); ++y)
+    {
+        for (unsigned x = 0; x < grad.width(); ++x)
         {
-            for (unsigned x = 0; x < matFromImg.width(); ++x)
+            Float2& data = grad.at(y, x);
+            if (fabs(data.magnitude()) < RTABLE_THRESHOLD)
+                continue;
+
+            unsigned angle = (unsigned) ((OBJ_RTABLE_ANGLES - 1) * (0.5f + (data.atan2() / (2 * M_PI))));
+
+            for (unsigned i = 0; i < rTables.size(); ++i)
             {
-                Float2& data = grad.at(y, x);
-                if (data.magnitude() < threshold)
-                    continue;
-
-                unsigned angle = (unsigned) ((OBJ_RTABLE_ANGLES - 1) * (0.5f + (data.atan2() / (2 * M_PI))));
-
-                for (unsigned i = 0; i < rTables.size(); ++i)
+                std::vector<Float2>& rTableData = rTables[i][angle];
+                for (auto& f2 : rTableData)
                 {
-                    Float2& rtd = rTables[i][angle];
-                    int yy = y - rtd.y * scales[i];
+                    int yy = y - f2.y * scales[i];
                     if (yy < 0 || yy >= grad.height())
-                    {
-                        countb++;
                         continue;
-                    }
 
-                    int xx = x - rtd.x * scales[i];
+                    int xx = x - f2.x * scales[i];
                     if (xx < 0 || xx >= grad.width())
-                    {
-                        countb++;
                         continue;
-                    }
 
                     scans[i].at(yy, xx)++;
-                    countg++;
                 }
             }
         }
-        LOGD(TAG, "%lu %lu", countg, countb);
-        ret = true;
     }
-    else
-        ret = false;
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    LOGD(TAG, "Scan: %lld", duration.count());
+    std::vector<Linef> lines(musicLines.size());
+    std::vector<float> distance(musicLines.size());
 
-    return ret;
+    LOGD(TAG, "log lines:");
+    for (unsigned i = 0; i < musicLines.size(); ++i)
+    {
+        lines[i].m = musicLines[i].angle - M_PI / 2.0f;
+        float x = cosf(musicLines[i].angle) * musicLines[i].middle;
+        float y = sinf(musicLines[i].angle) * musicLines[i].middle;
+        lines[i].b = y - x * tanf(musicLines[i].angle - M_PI / 2.0f);
+        LOGD(TAG, "%f, %f", lines[i].m, lines[i].b);
+    }
+    LOGD(TAG, "done");
+
+    auto treblePeaks = scans[1].peaks(thresholds[1], 20, 20);
+    auto bassPeaks = scans[2].peaks(thresholds[2], 20, 20);
+
+    LOGD(TAG, "treble peaks: %u", (unsigned) treblePeaks.size());
+    LOGD(TAG, "bass peaks: %u", (unsigned) bassPeaks.size());
+
+    struct ClefData
+    {
+        bool tpSet = false;
+        bool bpSet = false;
+        Matrix2D<int>::Peak tp;
+        Matrix2D<int>::Peak bp;
+        float tdist;
+        float bdist;
+    };
+
+    std::vector<ClefData> clefFinder(musicLines.size());
+
+    for (auto& peak : treblePeaks)
+    {
+        for (unsigned j = 0; j < distance.size(); ++j)
+        {
+            Pointf p(peak.point.x, peak.point.y);
+            distance[j] = lineAngleToPointDistance(lines[j], p);
+        }
+
+        auto it = std::min_element(std::begin(distance), std::end(distance));
+
+        if (*it > musicLines.front().spacing * 2)
+            continue;
+
+        unsigned idx = it - distance.begin();
+        if (!clefFinder[idx].tpSet)
+        {
+            clefFinder[idx].tp = peak;
+            clefFinder[idx].tpSet = true;
+            clefFinder[idx].tdist = *it;
+        }
+    }
+
+    for (auto& peak : bassPeaks)
+    {
+        for (unsigned j = 0; j < distance.size(); ++j)
+        {
+            Pointf p(peak.point.x, peak.point.y);
+            distance[j] = lineAngleToPointDistance(lines[j], p);
+        }
+
+        auto it = std::min_element(std::begin(distance), std::end(distance));
+
+        if (*it > musicLines.front().spacing * 2)
+            continue;
+
+        unsigned idx = it - distance.begin();
+        if (!clefFinder[idx].bpSet)
+        {
+            clefFinder[idx].bp = peak;
+            clefFinder[idx].bpSet = true;
+            clefFinder[idx].bdist = *it;
+        }
+    }
+
+    for (unsigned i = 0; i < clefFinder.size(); ++i)
+    {
+        if (clefFinder[i].tpSet && !clefFinder[i].bpSet)
+        {
+            musicLines[i].clef = Music::Treble;
+            musicLines[i].clefPos.x = clefFinder[i].tp.point.x;
+            musicLines[i].clefPos.y = clefFinder[i].tp.point.y;
+        }
+        else if (!clefFinder[i].tpSet && clefFinder[i].bpSet)
+        {
+            musicLines[i].clef = Music::Bass;
+            musicLines[i].clefPos.x = clefFinder[i].bp.point.x;
+            musicLines[i].clefPos.y = clefFinder[i].bp.point.y;
+        }
+        else if (clefFinder[i].tpSet && clefFinder[i].bpSet)
+        {
+            if (clefFinder[i].tdist < clefFinder[i].bdist)
+            {
+                musicLines[i].clef = Music::Treble;
+                musicLines[i].clefPos.x = clefFinder[i].tp.point.x;
+                musicLines[i].clefPos.y = clefFinder[i].tp.point.y;
+            }
+            else
+            {
+                musicLines[i].clef = Music::Bass;
+                musicLines[i].clefPos.x = clefFinder[i].bp.point.x;
+                musicLines[i].clefPos.y = clefFinder[i].bp.point.y;
+            }
+        }
+    }
+
+    for (auto& peak : scans[0].peaks(thresholds[0], 16, 16))
+    {
+        for (unsigned j = 0; j < distance.size(); ++j)
+        {
+            Pointf p(peak.point.x, peak.point.y);
+            distance[j] = lineAngleToPointDistance(lines[j], p);
+        }
+
+        auto it = std::min_element(std::begin(distance), std::end(distance));
+        unsigned idx = it - distance.begin();
+
+        if (*it > musicLines.front().spacing * 5)
+            continue;
+
+        if (musicLines[idx].clef != Music::Unknown
+            && fabs((musicLines[idx].clefPos.x - peak.point.x) / musicLines.front().spacing) < 4)
+            continue;
+
+        musicLines[idx].notes.emplace_back();
+        musicLines[idx].notes.back().position.x = peak.point.x;
+        musicLines[idx].notes.back().position.y = peak.point.y;
+    }
+
+    cv::Mat m(scans[1].height(), scans[1].width(), CV_8UC1);
+    unsigned max = std::numeric_limits<unsigned>::min();
+    for (unsigned y = 0; y < scans[1].height(); ++y)
+    {
+        for (unsigned x = 0; x < scans[1].width(); ++x)
+        {
+            if (scans[1].at(y, x) > max)
+                max = scans[1].at(y, x);
+        }
+    }
+
+    for (unsigned y = 0; y < scans[1].height(); ++y)
+    {
+        for (unsigned x = 0; x < scans[1].width(); ++x)
+        {
+            m.at<uint8_t>(y, x) = 255 * scans[1].at(y, x) / (float) max;
+        }
+    }
+
+    return m;
 }

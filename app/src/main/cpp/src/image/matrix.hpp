@@ -5,7 +5,7 @@
 #include <memory>
 #include <sstream>
 
-#define DEBUG true
+#define DEBUG false
 
 template<class T>
 Matrix2D<T>::Iterator::Iterator(unsigned int idx, T* data) : _idx(idx), _data(data)
@@ -198,7 +198,6 @@ std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::peaks(T min, unsigned ky, u
     std::queue<ToVisit> toVisit;
     std::vector<Peak> peaks;
 
-
     for (auto it = map.begin(); it != map.end(); ++it)
     {
         if (visited[it->second.y * _x + it->second.x])
@@ -207,6 +206,7 @@ std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::peaks(T min, unsigned ky, u
         toVisit.emplace(it->second, ky, kx);
 
         peaks.emplace_back(at(it->second), it->second);
+        float energy = it->first;
 
         while (!toVisit.empty())
         {
@@ -231,12 +231,17 @@ std::vector<typename Matrix2D<T>::Peak> Matrix2D<T>::peaks(T min, unsigned ky, u
 
                 }
 
+                energy += at(tv.point);
                 visited[idx] = true;
             }
 
             toVisit.pop();
         }
+
+        peaks.back().energy = energy;
     }
+
+
 
     return peaks;
 }
