@@ -59,6 +59,6 @@ namespace Detection
 
     void init();
     void getMusicLines(cv::Mat& img, std::vector<Music>& musicLines, std::vector<LineData>& allLines);
-    cv::Mat scan(cv::Mat& img, std::vector<Music>& musicLines);
+    bool scan(cv::Mat& img, std::vector<Music>& musicLines);
     cv::String getNote(std::vector<LineData>& noteLines, int position);
 }

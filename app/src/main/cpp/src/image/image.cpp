@@ -124,8 +124,7 @@ void ImageAnalysis::processImage(cv::Mat& img)
     std::vector<Detection::LineData> allLines;
     getMusicLines(adapt, musicLines, allLines);
 
-    cv::Mat img2 = Detection::scan(gray, musicLines);
-    //cv::cvtColor(histeq, img, cv::COLOR_GRAY2RGBA);
+    Detection::scan(gray, musicLines);
 
     /////////////////////////////////////////
     ///////// End of Implementation /////////

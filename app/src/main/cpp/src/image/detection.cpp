@@ -246,7 +246,7 @@ void Detection::getMusicLines(cv::Mat& img, std::vector<Music>& musicLines, std:
             distAvg += pp.peak.point.x;
         }
 
-        if (M_PI * (max - min) / (float) LINE_ACCUMULATION_ANGLES > 3)
+        if (M_PI * (max - min) / (float) LINE_ACCUMULATION_ANGLES > 4)
             continue;
 
         int diff[4];
@@ -263,7 +263,7 @@ void Detection::getMusicLines(cv::Mat& img, std::vector<Music>& musicLines, std:
         for (unsigned i = 1; i < 4; ++i)
         {
             float dd = fabs(diff[i] / (float) diff[0]);
-            if (dd > 1.25f || dd < 0.75f)
+            if (dd > 1.3f || dd < 0.7f)
             {
                 invalid = true;
                 break;
@@ -334,12 +334,12 @@ cv::String Detection::getNote(std::vector<LineData>& noteLines, int position)
     return noteMap[noteidx];
 }
 
-cv::Mat Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
+bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
 {
     static std::vector<Matrix2D<int>> scans;
 
     if (musicLines.empty())
-        return cv::Mat();
+        return false;
 
     float scales[5] = {
             musicLines.front().spacing,
@@ -350,8 +350,8 @@ cv::Mat Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
     };
     std::vector<unsigned> thresholds = {
             (unsigned) (objPointCounts[0] * sqrtf(musicLines.front().spacing) / 12),
-            (unsigned) (objPointCounts[1] * sqrtf(musicLines.front().spacing) / 35),
-            (unsigned) (objPointCounts[2] * sqrtf(musicLines.front().spacing) / 20),
+            (unsigned) (objPointCounts[1] * sqrtf(musicLines.front().spacing) / 25),
+            (unsigned) (objPointCounts[2] * sqrtf(musicLines.front().spacing) / 15),
             (unsigned) (objPointCounts[3] * sqrtf(musicLines.front().spacing) / 15),
             (unsigned) (objPointCounts[4] * sqrtf(musicLines.front().spacing) / 15)
     };
@@ -492,7 +492,7 @@ cv::Mat Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
         }
         else if (clefFinder[i].tpSet && clefFinder[i].bpSet)
         {
-            if (clefFinder[i].tdist < clefFinder[i].bdist)
+            if (clefFinder[i].tp.energy > clefFinder[i].bp.energy)
             {
                 musicLines[i].clef = Music::Treble;
                 musicLines[i].clefPos.x = clefFinder[i].tp.point.x;
@@ -530,24 +530,5 @@ cv::Mat Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
         musicLines[idx].notes.back().position.y = peak.point.y;
     }
 
-    cv::Mat m(scans[1].height(), scans[1].width(), CV_8UC1);
-    unsigned max = std::numeric_limits<unsigned>::min();
-    for (unsigned y = 0; y < scans[1].height(); ++y)
-    {
-        for (unsigned x = 0; x < scans[1].width(); ++x)
-        {
-            if (scans[1].at(y, x) > max)
-                max = scans[1].at(y, x);
-        }
-    }
-
-    for (unsigned y = 0; y < scans[1].height(); ++y)
-    {
-        for (unsigned x = 0; x < scans[1].width(); ++x)
-        {
-            m.at<uint8_t>(y, x) = 255 * scans[1].at(y, x) / (float) max;
-        }
-    }
-
-    return m;
+    return true;
 }
