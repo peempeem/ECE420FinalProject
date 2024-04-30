@@ -139,27 +139,6 @@ void ImageAnalysis::processImage(cv::Mat& img)
     if (useUndistort)
         undistorted.copyTo(img);
 
-//    if (scanned)
-//    {
-//        for (auto& peak : scans[0].peaks(36, 6, 6))
-//        {
-//            cv::circle(img,
-//                       cv::Point(peak.point.x, peak.point.y),
-//                       20,
-//                       cv::Scalar(255, 0, 255, 255));
-//
-//            cv::putText(img,
-//                        Detection::getNote(noteLines,peak.point.y),
-//                        cv::Point(peak.point.x,peak.point.y),
-//                        cv::FONT_HERSHEY_COMPLEX,
-//                        2,
-//                        cv::Scalar(255,0,255,255),
-//                        1);
-//        }
-//    }
-
-
-    drawLines(img, allLines, cv::Scalar(0, 255, 0, 255));
     drawMusic(img, musicLines);
 
     for (auto& line : musicLines)
@@ -183,8 +162,20 @@ void ImageAnalysis::processImage(cv::Mat& img)
         {
             cv::circle(img,
                        cv::Point(note.position.x, note.position.y),
-                       20,
-                       cv::Scalar(0, 0, 0, 255));
+                       4,
+                       cv::Scalar(255, 255, 255, 255),
+                       4);
+
+            if (note.data)
+            {
+                cv::putText(img,
+                            note.data->name,
+                            cv::Point(note.position.x, note.position.y - 30),
+                            cv::FONT_HERSHEY_SIMPLEX,
+                            1,
+                            cv::Scalar(255,0,255,255),
+                            1);
+            }
         }
     }
 

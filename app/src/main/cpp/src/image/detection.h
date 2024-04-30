@@ -12,6 +12,9 @@ namespace Detection
     {
         float m;
         float b;
+
+        Linef() {}
+        Linef(float m, float b) : m(m), b(b) {}
     };
 
     struct Pointf
@@ -44,7 +47,7 @@ namespace Detection
 
         struct Note
         {
-            MusicNote::Data data;
+            const MusicNote::Data* data;
             Pointf position;
         };
 
