@@ -38,6 +38,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 public class MainActivity extends AppCompatActivity {
     static {
@@ -219,6 +220,7 @@ public class MainActivity extends AppCompatActivity {
 
         playbackThread = new Thread()
         {
+            private final Semaphore mutex = new Semaphore(1);
             @Override
             public void run() {
                 try {
@@ -229,16 +231,23 @@ public class MainActivity extends AppCompatActivity {
                             displayState = DisplayState.APP2;
                         }
                         if (displayState == DisplayState.APP2) {
+                            mutex.acquire();
                             stepPlayback(bitmap);
+                            mutex.release();
 
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
-                                    viewFinder.setImageBitmap(bitmap);
+                                    try {
+                                        mutex.acquire();
+                                    } catch (Exception e) {e.printStackTrace(); }
+                                    Bitmap tempBMP = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), null, true);
+                                    mutex.release();
+                                    viewFinder.setImageBitmap(tempBMP);
                                 }
                             });
                         }
-                        sleep(32);
+                        sleep(16);
                     }
                 } catch (InterruptedException e) {
                     e.printStackTrace();

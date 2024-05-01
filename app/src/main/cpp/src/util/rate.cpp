@@ -33,11 +33,12 @@ void Rate::setMs(unsigned ms, bool keepStage)
 
     _inverseRate = newInverseRate;
     _last = _start;
+    _enabled = true;
 }
 
 void Rate::setHertz(float hertz, bool keepStage)
 {
-    uint64_t newInverseRate;
+    unsigned long newInverseRate;
     if (hertz <= 0)
         newInverseRate = -1;
     else
@@ -46,7 +47,7 @@ void Rate::setHertz(float hertz, bool keepStage)
     _start = sysTime();
     if (keepStage)
     {
-        uint64_t offset = newInverseRate * getStage();
+        unsigned long offset = newInverseRate * getStage();
         if (offset > _start)
             _start = 0;
         else
@@ -55,6 +56,17 @@ void Rate::setHertz(float hertz, bool keepStage)
 
     _inverseRate = newInverseRate;
     _last = _start;
+    _enabled = true;
+}
+
+void Rate::enable()
+{
+    _enabled = true;
+}
+
+void Rate::disable()
+{
+    _enabled = false;
 }
 
 void Rate::reset()
@@ -63,12 +75,17 @@ void Rate::reset()
     _last = _start;
 }
 
-bool Rate::isReady()
+bool Rate::isReady(bool roll)
 {
+    if (!_enabled)
+        return false;
     unsigned long time = sysTime();
     if (time > _inverseRate + _last)
     {
-        _last = time - (time - _last) % _inverseRate;
+        if (roll)
+            _last = time - (time - _last) % _inverseRate;
+        else
+            reset();
         return true;
     }
     return false;

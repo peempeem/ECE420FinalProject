@@ -338,8 +338,8 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
     };
     std::vector<unsigned> thresholds = {
             (unsigned) (objPointCounts[0] * sqrtf(musicLines.front().spacing) / 10),
-            (unsigned) (objPointCounts[1] * sqrtf(musicLines.front().spacing) / 25),
-            (unsigned) (objPointCounts[2] * sqrtf(musicLines.front().spacing) / 15),
+            (unsigned) (objPointCounts[1] * sqrtf(musicLines.front().spacing) / 30),
+            (unsigned) (objPointCounts[2] * sqrtf(musicLines.front().spacing) / 20),
             (unsigned) (objPointCounts[3] * sqrtf(musicLines.front().spacing) / 15),
             (unsigned) (objPointCounts[4] * sqrtf(musicLines.front().spacing) / 15)
     };

@@ -12,4 +12,4 @@ void findEpochLocations(std::vector<int> &epochLocations, float *buffer, int per
 void overlapAddArray(float *dest, float *src, int startIdx, int len);
 int findClosestInVector(std::vector<int> vec, float value, int minIdx, int maxIdx);
 float getHanningCoef(int N, int idx);
-void tdpsola(int FREQ_NEW);
+float* tdpsola(int FREQ_NEW);

@@ -3,8 +3,10 @@
 #include <mutex>
 #include "../../kiss_fft/kiss_fft.h"
 #include "../util/log.h"
+#include "../util/stream.h"
+#include "tdpsola.h"
 
-#define AUDIO_SAMPLING_RATE 48000
+#define INPUT_AUDIO_SAMPLING_RATE 48000
 #define AUDIO_SAMPLES_PER_BUFFER 1024 * 4
 #define KFFT_SIZE AUDIO_SAMPLES_PER_BUFFER * 4
 #define PEAK_VALUES 2
@@ -14,13 +16,17 @@ float audioIn[AUDIO_SAMPLES_PER_BUFFER];
 kiss_fft_cfg kissFFTConfig;
 kiss_fft_cfg kissIFFTConfig;
 float noiseThreshold = 1.5e2 * AUDIO_SAMPLES_PER_BUFFER;
-AAudioStream* audioStream = NULL;
+AAudioStream* inputAudioStream = NULL;
 std::mutex fftMtx;
 std::mutex autoCorrMtx;
 kiss_fft_cpx buf1[KFFT_SIZE];
 kiss_fft_cpx fftBuf[KFFT_SIZE];
 kiss_fft_cpx autoCorrBuf[KFFT_SIZE];
-const MusicNote::Data* note = NULL;
+const MusicNote::Data* currentNote = NULL;
+
+#define OUTPUT_AUDIO_SAMPLING_RATE 11025
+AAudioStream* outputAudioStream = NULL;
+AudioStream<float, 29750 * 2> outputStream;
 
 typedef aaudio_data_callback_result_t(*AAudioStream_dataCallback)(
         AAudioStream *stream,
@@ -36,7 +42,7 @@ void processBuffer()
 
     if (energy < noiseThreshold)
     {
-        note = NULL;
+        currentNote = NULL;
         return;
     }
 
@@ -84,8 +90,8 @@ void processBuffer()
     }
     autoCorrMtx.unlock();
 
-    float frequency = AUDIO_SAMPLING_RATE / (float) peak;
-    note = musicNote.fromFrequency(frequency);
+    float frequency = INPUT_AUDIO_SAMPLING_RATE / (float) peak;
+    currentNote = musicNote.fromFrequency(frequency);
 }
 
 aaudio_data_callback_result_t inputAudioDataCallback(
@@ -96,13 +102,27 @@ aaudio_data_callback_result_t inputAudioDataCallback(
 {
     for (unsigned i = 0; i < numFrames; ++i)
     {
-        audioIn[audioInSize++] = ((int16_t *) audioData)[i];
+        audioIn[audioInSize++] = ((int16_t*) audioData)[i];
         if (audioInSize == AUDIO_SAMPLES_PER_BUFFER)
         {
             processBuffer();
             audioInSize = 0;
         }
     }
+    return AAUDIO_CALLBACK_RESULT_CONTINUE;
+}
+
+aaudio_data_callback_result_t outputAudioDataCallback(
+        AAudioStream* stream,
+        void* userData,
+        void* audioData,
+        int32_t numFrames)
+{
+    float* arr = new float[numFrames];
+    outputStream.get(arr, numFrames);
+    for (unsigned i = 0; i < numFrames; ++i)
+        ((int16_t*) audioData)[i] = arr[i] * std::numeric_limits<int16_t>::max();
+    delete[] arr;
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
@@ -116,38 +136,60 @@ bool AudioAnalyzer::init()
         return false;
     }
 
-    AAudioStreamBuilder_setDeviceId(builder, AAUDIO_UNSPECIFIED);
     AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_INPUT);
     AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
-    AAudioStreamBuilder_setSampleRate(builder, AUDIO_SAMPLING_RATE);
+    AAudioStreamBuilder_setSampleRate(builder, INPUT_AUDIO_SAMPLING_RATE);
     AAudioStreamBuilder_setChannelCount(builder, AAUDIO_CHANNEL_MONO);
     AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
     AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_POWER_SAVING);
-    AAudioStreamBuilder_setBufferCapacityInFrames(builder, AAUDIO_UNSPECIFIED);
     AAudioStreamBuilder_setDataCallback(builder, inputAudioDataCallback, NULL);
 
-    if (audioStream)
-        AAudioStream_close(audioStream);
+    if (inputAudioStream)
+        AAudioStream_close(inputAudioStream);
 
-    result = AAudioStreamBuilder_openStream(builder, &audioStream);
-    AAudioStreamBuilder_delete(builder);
+    result = AAudioStreamBuilder_openStream(builder, &inputAudioStream);
+    if (result != AAUDIO_OK)
+    {
+        LOGE(TAG, "Input AAudioStreamBuilder_openStream returned error (%d)", result);
+        AAudioStreamBuilder_delete(builder);
+        return false;
+    }
 
     kissFFTConfig = kiss_fft_alloc(KFFT_SIZE, false, NULL, NULL);
     kissIFFTConfig = kiss_fft_alloc(KFFT_SIZE, true, NULL, NULL);
 
+    result = AAudioStream_requestStart(inputAudioStream);
     if (result != AAUDIO_OK)
     {
-        LOGE(TAG, "AAudioStreamBuilder_openStream returned error (%d)", result);
+        LOGE(TAG, "Input AAudioStream_requestStart returned error (%d)", result);
+        AAudioStreamBuilder_delete(builder);
         return false;
     }
 
-    result = AAudioStream_requestStart(audioStream);
+    AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_OUTPUT);
+    AAudioStreamBuilder_setSampleRate(builder, OUTPUT_AUDIO_SAMPLING_RATE);
+    AAudioStreamBuilder_setDataCallback(builder, outputAudioDataCallback, NULL);
+
+    if (outputAudioStream)
+        AAudioStream_close(outputAudioStream);
+
+    result = AAudioStreamBuilder_openStream(builder, &outputAudioStream);
     if (result != AAUDIO_OK)
     {
-        LOGE(TAG, "AAudioStream_requestStart returned error (%d)", result);
+        LOGE(TAG, "Output AAudioStreamBuilder_openStream returned error (%d)", result);
+        AAudioStreamBuilder_delete(builder);
         return false;
     }
 
+    result = AAudioStream_requestStart(outputAudioStream);
+    if (result != AAUDIO_OK)
+    {
+        LOGE(TAG, "Output AAudioStream_requestStart returned error (%d)", result);
+        AAudioStreamBuilder_delete(builder);
+        return false;
+    }
+
+    AAudioStreamBuilder_delete(builder);
     return true;
 }
 
@@ -163,18 +205,31 @@ void AudioAnalyzer::resume()
 
 void AudioAnalyzer::deinit()
 {
-    if (audioStream)
+    if (inputAudioStream)
     {
-        AAudioStream_close(audioStream);
-        audioStream = NULL;
+        AAudioStream_close(inputAudioStream);
+        inputAudioStream = NULL;
         kiss_fft_free(kissFFTConfig);
         kiss_fft_free(kissIFFTConfig);
+    }
+    if (outputAudioStream)
+    {
+        AAudioStream_close(outputAudioStream);
+        outputAudioStream = NULL;
     }
 }
 
 const MusicNote::Data* AudioAnalyzer::getCurrentNote()
 {
-    return note;
+    return currentNote;
+}
+
+void AudioAnalyzer::playNote(const MusicNote::Data* note)
+{
+    if (!note)
+        return;
+    outputStream.putOverlapAdd(tdpsola(note->frequency), 29750);
+
 }
 
 void AudioAnalyzer::getFFT(std::vector<float>& fft)

@@ -18,18 +18,21 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         src/image/matrix.h
         src/image/matrix.hpp
         src/audio/audio.h
-        src/image/img_storage.cpp
         src/image/img_storage.h
+        src/image/img_storage.cpp
+        src/audio/audio.h
         src/audio/audio.cpp
         src/audio/note.h
         src/audio/note.cpp
-        src/audio/tdpsola.cpp
         src/audio/tdpsola.h
-        src/app/app.cpp
+        src/audio/tdpsola.cpp
         src/app/app.h
+        src/app/app.cpp
         src/util/log.h
-        src/util/rate.cpp
         src/util/rate.h
+        src/util/rate.cpp
+        src/util/stream.h
+        src/util/stream.hpp
         kiss_fft/kiss_fft.c
         kiss_fft/kiss_fft.h)
 

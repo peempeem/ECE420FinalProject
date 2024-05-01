@@ -10,11 +10,15 @@ static Rate currentNoteAnimation(1.5);
 static int currentLine;
 static int currentNote;
 static bool validMusicLines;
+static Rate badStartA;
+static Rate badStartE;
 
 void restartApp()
 {
     startupAnimation.setHertz(1);
     currentLine = -1;
+    badStartA.setMs(600);
+    badStartE.setMs(300);
     newAlloc = true;
 }
 
@@ -42,7 +46,7 @@ bool nextNote(std::vector<Detection::Music>& musicLines)
     if (currentNote >= musicLines[currentLine].notes.size())
     {
         ++currentLine;
-        currentNote = 0;
+        currentNote = -1;
         return nextNote(musicLines);
     }
     return true;
@@ -78,8 +82,12 @@ void stepApp(cv::Mat& img)
     {
         draw = cv::Mat::zeros(img.rows, img.cols, CV_8UC4);
         nextNote(musicLines);
+
         if (currentLine != -1)
+        {
+            AudioAnalyzer::playNote(musicLines[currentLine].notes[currentNote].data);
             validMusicLines = true;
+        }
         else
             validMusicLines = false;
         newAlloc = false;
@@ -90,6 +98,21 @@ void stepApp(cv::Mat& img)
         {
             for (unsigned x = 0; x < draw.cols; ++x)
                 draw.at<cv::Vec4b>(y, x)[3] = 0;
+        }
+    }
+
+    if (!validMusicLines)
+    {
+        if (badStartA.isReady())
+        {
+            badStartA.disable();
+            AudioAnalyzer::playNote(musicNote.fromName("A2"));
+        }
+
+        if (badStartE.isReady())
+        {
+            badStartE.disable();
+            AudioAnalyzer::playNote(musicNote.fromName("E3"));
         }
     }
 
@@ -212,7 +235,8 @@ void stepApp(cv::Mat& img)
                             0,
                             255,
                             255 * startupAnimation.getStageRamp()),
-                    2);
+                    3);
+        LOGD(TAG, "%f", startupAnimation.getStageRamp());
     }
     else if (currentLine == -1)
     {
@@ -238,17 +262,19 @@ void stepApp(cv::Mat& img)
                     2);
     }
 
-    overlayImage(img, draw);
-
     auto* note = AudioAnalyzer::getCurrentNote();
     if (note && currentLine != -1)
     {
         if (note->midi == musicLines[currentLine].notes[currentNote].data->midi)
+        {
             nextNote(musicLines);
+            if (currentLine != -1)
+                AudioAnalyzer::playNote(musicLines[currentLine].notes[currentNote].data);
+        }
     }
 
-    if (note)
-        LOGD(TAG, "%s", note->name);
+    overlayImage(img, draw);
+
 
 //    auto end = std::chrono::high_resolution_clock::now();
 //    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
