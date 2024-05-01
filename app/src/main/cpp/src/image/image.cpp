@@ -22,6 +22,9 @@ std::mutex calibMtx;
 #define CHECKERBOARD_X 7
 #define CHECKERBOARD_Y 7
 
+cv::Mat capture;
+std::vector<Detection::Music> musicLines;
+
 void ImageAnalysis::init()
 {
     Detection::init();
@@ -51,32 +54,32 @@ void drawLines(cv::Mat& img, std::vector<Detection::LineData> lines, cv::Scalar 
     }
 }
 
-void drawMusic(cv::Mat& img, std::vector<Detection::Music> musicLines)
-{
-    for (auto& musicLine : musicLines)
-    {
-        float a = cosf(musicLine.angle);
-        float b = sinf(musicLine.angle);
-
-        for (unsigned i = 0; i < 5; ++i)
-        {
-            int x0 = a * musicLine.distance[i];
-            int y0 = b * musicLine.distance[i];
-
-            int x1 = x0 + (int) 10000 * (-b);
-            int y1 = y0 + (int) 10000 * a;
-
-            int x2 = x0 - (int) 10000 * (-b);
-            int y2 = y0 - (int) 10000 * a;
-
-            cv::line(img,
-                     cv::Point(x1, y1),
-                     cv::Point(x2, y2),
-                     cv::Scalar(255, 0, 255, 255),
-                     1);
-        }
-    }
-}
+//void drawMusic(cv::Mat& img, std::vector<Detection::Music> musicLines)
+//{
+//    for (auto& musicLine : musicLines)
+//    {
+//        float a = cosf(musicLine.angle);
+//        float b = sinf(musicLine.angle);
+//
+//        for (unsigned i = 0; i < 5; ++i)
+//        {
+//            int x0 = a * musicLine.distance[i];
+//            int y0 = b * musicLine.distance[i];
+//
+//            int x1 = x0 + (int) 10000 * (-b);
+//            int y1 = y0 + (int) 10000 * a;
+//
+//            int x2 = x0 - (int) 10000 * (-b);
+//            int y2 = y0 - (int) 10000 * a;
+//
+//            cv::line(img,
+//                     cv::Point(x1, y1),
+//                     cv::Point(x2, y2),
+//                     cv::Scalar(255, 0, 255, 255),
+//                     1);
+//        }
+//    }
+//}
 
 void ImageAnalysis::processImage(cv::Mat& img)
 {
@@ -120,8 +123,8 @@ void ImageAnalysis::processImage(cv::Mat& img)
             3,
             3);
 
-    std::vector<Detection::Music> musicLines;
     std::vector<Detection::LineData> allLines;
+    musicLines.clear();
     getMusicLines(adapt, musicLines, allLines);
 
     Detection::scan(gray, musicLines);
@@ -130,63 +133,14 @@ void ImageAnalysis::processImage(cv::Mat& img)
     ///////// End of Implementation /////////
     /////////////////////////////////////////
 
+    if (useUndistort)
+        undistorted.copyTo(capture);
+    else
+        img.copyTo(capture);
+
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     LOGD(TAG, "Processing Time: %lld", duration.count());
-
-    start = std::chrono::high_resolution_clock::now();
-
-    if (useUndistort)
-        undistorted.copyTo(img);
-
-    drawMusic(img, musicLines);
-
-    for (auto& line : musicLines)
-    {
-        if (line.clef != Detection::Music::Treble)
-        {
-            cv::circle(img,
-                       cv::Point(line.clefPos.x, line.clefPos.y),
-                       20,
-                       cv::Scalar(0, 255, 255, 255));
-        }
-        else if (line.clef != Detection::Music::Bass)
-        {
-            cv::circle(img,
-                       cv::Point(line.clefPos.x, line.clefPos.y),
-                       20,
-                       cv::Scalar(255, 255, 0, 255));
-        }
-
-        for (auto& note : line.notes)
-        {
-            cv::circle(img,
-                       cv::Point(note.position.x, note.position.y),
-                       4,
-                       cv::Scalar(255, 255, 255, 255),
-                       4);
-
-            if (note.data)
-            {
-                cv::putText(img,
-                            note.data->name,
-                            cv::Point(note.position.x, note.position.y - 30),
-                            cv::FONT_HERSHEY_SIMPLEX,
-                            1,
-                            cv::Scalar(255,0,255,255),
-                            1);
-            }
-        }
-    }
-
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    LOGD(TAG, "Draw Time: %lld", duration.count());
-}
-
-void ImageAnalysis::accumulator(cv::Mat& img)
-{
-
 }
 
 void ImageAnalysis::beginCalibration()
@@ -252,13 +206,12 @@ void ImageAnalysis::endCalibration() {
     LOGD(TAG, "Camera Calibration Complete");
 }
 
-void ImageAnalysis::audioStats(cv::Mat& img)
+cv::Mat& ImageAnalysis::getCapture()
 {
-    std::vector<float> fft;
-    std::vector<float> autoCorr;
+    return capture;
+}
 
-    AudioAnalyzer::getFFT(fft);
-    AudioAnalyzer::getAutoCorrelation(autoCorr);
-
-    // TODO: display fft and autocorr in image
+std::vector<Detection::Music>& ImageAnalysis::getMusicLines()
+{
+    return musicLines;
 }

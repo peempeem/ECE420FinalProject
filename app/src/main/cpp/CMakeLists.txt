@@ -25,8 +25,13 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         src/audio/note.cpp
         src/audio/tdpsola.cpp
         src/audio/tdpsola.h
-        kiss_fft/kiss_fft.h
-        kiss_fft/kiss_fft.c)
+        src/app/app.cpp
+        src/app/app.h
+        src/util/log.h
+        src/util/rate.cpp
+        src/util/rate.h
+        kiss_fft/kiss_fft.c
+        kiss_fft/kiss_fft.h)
 
 file(GLOB_RECURSE SOURCES "./src/**.cpp")
 

@@ -121,25 +121,25 @@
                 android:layout_width="0dp"
                 android:layout_columnWeight="1"
                 android:layout_height="wrap_content"
-                android:text="Accumulator"
+                android:text="Start Playback"
                 android:textColor="@color/white"
                 android:background="@drawable/capture_button_gradient"
                 android:gravity="center"
                 android:foreground="?android:attr/selectableItemBackground"
                 android:layout_margin="5dp"
-                android:id="@+id/showAccumulator"/>
+                android:id="@+id/startPlayback"/>
 
             <Button
                 android:layout_width="0dp"
                 android:layout_columnWeight="1"
                 android:layout_height="wrap_content"
-                android:text="Audio Stats"
+                android:text="Restart Playback"
                 android:textColor="@color/white"
                 android:background="@drawable/capture_button_gradient"
                 android:gravity="center"
                 android:foreground="?android:attr/selectableItemBackground"
                 android:layout_margin="5dp"
-                android:id="@+id/showAudioStats"/>
+                android:id="@+id/restartPlayback"/>
 
             <Button
                 android:layout_width="0dp"

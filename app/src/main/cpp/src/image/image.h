@@ -6,9 +6,11 @@ namespace ImageAnalysis
 {
     void init();
     void processImage(cv::Mat& img);
-    void accumulator(cv::Mat& img);
     void beginCalibration();
     void calibrateCamera(cv::Mat& img);
     void endCalibration();
-    void audioStats(cv::Mat& img);
+
+    cv::Mat& getCapture();
+    std::vector<Detection::Music>& getMusicLines();
+
 }

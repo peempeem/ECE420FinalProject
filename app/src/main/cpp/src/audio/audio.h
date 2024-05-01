@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include "note.h"
 
 namespace AudioAnalyzer
 {
@@ -9,6 +10,7 @@ namespace AudioAnalyzer
     void resume();
     void deinit();
 
+    const MusicNote::Data* getCurrentNote();
     void getFFT(std::vector<float>& fft);
     void getAutoCorrelation(std::vector<float>& autoCorr);
 };

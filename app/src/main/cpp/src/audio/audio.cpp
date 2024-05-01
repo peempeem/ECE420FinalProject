@@ -3,11 +3,10 @@
 #include <mutex>
 #include "../../kiss_fft/kiss_fft.h"
 #include "../util/log.h"
-#include "note.h"
 
 #define AUDIO_SAMPLING_RATE 48000
-#define AUDIO_SAMPLES_PER_BUFFER 1024 * 3
-#define KFFT_SIZE AUDIO_SAMPLES_PER_BUFFER * 2
+#define AUDIO_SAMPLES_PER_BUFFER 1024 * 4
+#define KFFT_SIZE AUDIO_SAMPLES_PER_BUFFER * 4
 #define PEAK_VALUES 2
 
 unsigned audioInSize = 0;
@@ -21,6 +20,7 @@ std::mutex autoCorrMtx;
 kiss_fft_cpx buf1[KFFT_SIZE];
 kiss_fft_cpx fftBuf[KFFT_SIZE];
 kiss_fft_cpx autoCorrBuf[KFFT_SIZE];
+const MusicNote::Data* note = NULL;
 
 typedef aaudio_data_callback_result_t(*AAudioStream_dataCallback)(
         AAudioStream *stream,
@@ -35,7 +35,10 @@ void processBuffer()
         energy += fabsf(audioIn[i]);
 
     if (energy < noiseThreshold)
+    {
+        note = NULL;
         return;
+    }
 
     // copy audio data into buf1
     for (unsigned i = 0; i < AUDIO_SAMPLES_PER_BUFFER; ++i)
@@ -82,10 +85,7 @@ void processBuffer()
     autoCorrMtx.unlock();
 
     float frequency = AUDIO_SAMPLING_RATE / (float) peak;
-    const MusicNote::Data* note = musicNote.fromFrequency(frequency);
-    if (!note)
-        return;
-//    LOGD(TAG, "%d: %f, %s, %f", peak, frequency, note->name, note->frequency);
+    note = musicNote.fromFrequency(frequency);
 }
 
 aaudio_data_callback_result_t inputAudioDataCallback(
@@ -170,6 +170,11 @@ void AudioAnalyzer::deinit()
         kiss_fft_free(kissFFTConfig);
         kiss_fft_free(kissIFFTConfig);
     }
+}
+
+const MusicNote::Data* AudioAnalyzer::getCurrentNote()
+{
+    return note;
 }
 
 void AudioAnalyzer::getFFT(std::vector<float>& fft)
