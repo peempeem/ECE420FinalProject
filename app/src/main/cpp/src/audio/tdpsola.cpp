@@ -98,70 +98,53 @@ float getHanningCoef(int N, int idx) {
 }
 
 void tdpsola(int FREQ_NEW) {
-    /* AudioFile.h borrowed from https://github.com/adamstark/AudioFile */
-    AudioFile<double> audioFile;
-    audioFile.load("piano-C4.wav"); /* sample piano-C4 downloaded from https://www.ee.columbia.edu/~dpwe/sounds/instruments/ */
-
-    int channel = 0;
-    int numSamples = audioFile.getNumSamplesPerChannel(); // eg. 29750
-
-    BUFFER_SIZE = numSamples;
-    F_S = audioFile.getSampleRate(); // eg. 11025
-
-    float sampleNote[BUFFER_SIZE] = {};
-    float desiredNote[BUFFER_SIZE] = {};
-    for (int i = 0; i < numSamples; i++)
-    {
-        sampleNote[i] = (float) (audioFile.samples[channel][i]);
-    }
-
-    std::vector<int> epochLocations;
-    findEpochLocations(epochLocations, sampleNote, F_S/261);
-
-    int P_1 = F_S/FREQ_NEW; // P1, new_epoch_spacing, eg. 28
-    
-    for (int i = 0; i < numSamples; i += P_1) {
-        int closest_epoch_index = findClosestInVector(epochLocations, i, 1, epochLocations.size()-1); // Find closest epoch of current new epoch from (original) audio_data
-        int P_0 = (epochLocations[closest_epoch_index + 1] - epochLocations[closest_epoch_index - 1]) / 2; // Find P_0
-        
-        // Compute impulse response with Hamming window, with the size of 2*P_0+1
-        int index = 0;
-        float overlapAddBuffer[BUFFER_SIZE] = {};
-        for (int j = epochLocations[closest_epoch_index]-P_0; j < epochLocations[closest_epoch_index]+P_0+1; j++) {
-            overlapAddBuffer[index] = sampleNote[j] * getHanningCoef(2*P_0+1, index);
-            index += 1;
-        }
-
-        overlapAddArray(desiredNote, overlapAddBuffer, i-P_0, 2*P_0+1);
-    }
-
-    AudioFile<double>::AudioBuffer buffer;
-    buffer.resize(1);
-    buffer[0].resize(BUFFER_SIZE);
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        buffer[0][i] = desiredNote[i];
-    }
-    bool ok = audioFile.setAudioBuffer(buffer);
-    string name = "pianoTone";
-    string newToneHz = name.append(std::to_string(FREQ_NEW));
-    string fileName = newToneHz.append(".wav");
-    audioFile.save(fileName);
-    std::cout << "Saving (TD-PSOLA) target -> " << fileName << " <- completed ... !";
-
-    return;
-}
-
-int main() {
-    tdpsola(494); // give target frequncy as an arg. for book of targeting frequency, refer to note.h/note.cpp
-
-    // C4: 261.63 Hz
-    // D4: 293.66 Hz
-    // E4: 329.63 Hz
-    // F4: 349.23 Hz
-    // G4: 392.00 Hz
-    // A4: 440.00 Hz
-    // B4: 493.88 Hz
-    // C5: 523.25 Hz
-
-    return 0;
+//    /* AudioFile.h borrowed from https://github.com/adamstark/AudioFile */
+//    AudioFile<double> audioFile;
+//    audioFile.load("piano-C4.wav"); /* sample piano-C4 downloaded from https://www.ee.columbia.edu/~dpwe/sounds/instruments/ */
+//
+//    int channel = 0;
+//    int numSamples = audioFile.getNumSamplesPerChannel(); // eg. 29750
+//
+//    BUFFER_SIZE = numSamples;
+//    F_S = audioFile.getSampleRate(); // eg. 11025
+//
+//    float sampleNote[BUFFER_SIZE] = {};
+//    float desiredNote[BUFFER_SIZE] = {};
+//    for (int i = 0; i < numSamples; i++)
+//    {
+//        sampleNote[i] = (float) (audioFile.samples[channel][i]);
+//    }
+//
+//    std::vector<int> epochLocations;
+//    findEpochLocations(epochLocations, sampleNote, F_S/261);
+//
+//    int P_1 = F_S/FREQ_NEW; // P1, new_epoch_spacing, eg. 28
+//
+//    for (int i = 0; i < numSamples; i += P_1) {
+//        int closest_epoch_index = findClosestInVector(epochLocations, i, 1, epochLocations.size()-1); // Find closest epoch of current new epoch from (original) audio_data
+//        int P_0 = (epochLocations[closest_epoch_index + 1] - epochLocations[closest_epoch_index - 1]) / 2; // Find P_0
+//
+//        // Compute impulse response with Hamming window, with the size of 2*P_0+1
+//        int index = 0;
+//        float overlapAddBuffer[BUFFER_SIZE] = {};
+//        for (int j = epochLocations[closest_epoch_index]-P_0; j < epochLocations[closest_epoch_index]+P_0+1; j++) {
+//            overlapAddBuffer[index] = sampleNote[j] * getHanningCoef(2*P_0+1, index);
+//            index += 1;
+//        }
+//
+//        overlapAddArray(desiredNote, overlapAddBuffer, i-P_0, 2*P_0+1);
+//    }
+//
+//    AudioFile<double>::AudioBuffer buffer;
+//    buffer.resize(1);
+//    buffer[0].resize(BUFFER_SIZE);
+//    for (int i = 0; i < BUFFER_SIZE; i++) {
+//        buffer[0][i] = desiredNote[i];
+//    }
+//    bool ok = audioFile.setAudioBuffer(buffer);
+//    string name = "pianoTone";
+//    string newToneHz = name.append(std::to_string(FREQ_NEW));
+//    string fileName = newToneHz.append(".wav");
+//    audioFile.save(fileName);
+//    std::cout << "Saving (TD-PSOLA) target -> " << fileName << " <- completed ... !";
 }

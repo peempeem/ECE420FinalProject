@@ -581,7 +581,7 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
 
         float x = cosf(musicLines[idx].angle) * musicLines[idx].middle;
         float y = sinf(musicLines[idx].angle) * musicLines[idx].middle;
-        float yy = y - (peak.point.x - x) * tanf(musicLines[idx].angle - M_PI / 2.0f);
+        float yy = y - (peak.point.x - x) * tanf((M_PI / 2.0f) - musicLines[idx].angle);
 
         int nd = (peak.point.y > yy) ? -roundf(noteDist) : roundf(noteDist);
 
@@ -610,11 +610,6 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
         }
 
         musicLines[idx].notes.back().data = &*scaleIT;
-
-        if (scaleIT->midi == musicNote.fromName("C3")->midi)
-        {
-            LOGD(TAG, "%d", nd);
-        }
     }
 
     return true;

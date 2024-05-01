@@ -31,15 +31,9 @@ MusicNote::MajorScaleIterator& MusicNote::MajorScaleIterator::operator++()
 MusicNote::MajorScaleIterator& MusicNote::MajorScaleIterator::operator--()
 {
     if (_idx == 0 || _idx == 3)
-    {
         _note = &(*_data)[_note->midi - 1 - 12];
-        LOGD(TAG, "half %d", _idx);
-    }
     else
-    {
         _note = &(*_data)[_note->midi - 2 - 12];
-        LOGD(TAG, "whole %d", _idx);
-    }
 
     --_idx;
     if (_idx < 0)
@@ -76,13 +70,6 @@ MusicNote::MusicNote()
             _data[i].name[1] = '0' + i / 12;
             _data[i].name[2] = '\0';
         }
-    }
-
-    auto it = beginScale(C_MAJOR, 4);
-    for (unsigned i = 0; i < 14; ++i)
-    {
-        LOGD(TAG, "%s", it->name);
-        --it;
     }
 }
 
