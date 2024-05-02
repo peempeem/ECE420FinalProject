@@ -77,6 +77,7 @@ public class MainActivity extends AppCompatActivity {
     private native void endCalibration();
     private native void restartPlayback();
     private native void stepPlayback(Bitmap bitmap);
+    private native void transpose(int transNumber);
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -131,6 +132,23 @@ public class MainActivity extends AppCompatActivity {
                     calibrateCamera.setText("CALIBRATE CAMERA");
                     displayState = DisplayState.PREROLLING;
                 }
+            }
+        });
+
+        transpose.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                transpose(progress - 6);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
             }
         });
 
@@ -261,16 +279,12 @@ public class MainActivity extends AppCompatActivity {
     public void onPause() {
         super.onPause();
         pauseCPP();
-        if (playbackThread != null)
-            playbackThread.suspend();
     }
 
     @Override
     public void onResume() {
         super.onResume();
         resumeCPP();
-        if (playbackThread != null)
-            playbackThread.resume();
     }
 
     @Override

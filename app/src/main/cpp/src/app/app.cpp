@@ -7,19 +7,30 @@ static bool newAlloc = true;
 static cv::Mat draw;
 static Rate startupAnimation;
 static Rate currentNoteAnimation(1.5);
+static Rate detectNote(1);
 static int currentLine;
 static int currentNote;
 static bool validMusicLines;
 static Rate badStartA;
 static Rate badStartE;
+static int transposeNumber = 0;
+static char buf[20];
+static MusicNote::Key tKey = MusicNote::C_MAJOR;
 
 void restartApp()
 {
     startupAnimation.setHertz(1);
     currentLine = -1;
+    detectNote.reset();
     badStartA.setMs(600);
     badStartE.setMs(300);
     newAlloc = true;
+}
+
+void transpose(int transNumber)
+{
+    transposeNumber = transNumber;
+    tKey = musicNote.transposeKey(MusicNote::C_MAJOR, transposeNumber);
 }
 
 bool nextNote(std::vector<Detection::Music>& musicLines)
@@ -85,7 +96,8 @@ void stepApp(cv::Mat& img)
 
         if (currentLine != -1)
         {
-            AudioAnalyzer::playNote(musicLines[currentLine].notes[currentNote].data);
+            auto* tNote = musicNote.convertToKey(musicLines[currentLine].notes[currentNote].data, tKey);
+            AudioAnalyzer::playNote(tNote);
             validMusicLines = true;
         }
         else
@@ -161,15 +173,17 @@ void stepApp(cv::Mat& img)
         {
             if (note.data)
             {
+                auto* tNote = musicNote.convertToKey(note.data, tKey);
+                musicNote.keyedNoteName(buf, tNote, tKey);
                 cv::Size textSize = cv::getTextSize(
-                        note.data->name,
+                        buf,
                         cv::FONT_HERSHEY_SIMPLEX,
                         musicLines.front().spacing / 15.0f,
                         2,
                         NULL);
 
                 cv::putText(draw,
-                            note.data->name,
+                            buf,
                             cv::Point(note.position.x - textSize.width / 2,
                                       note.position.y - 50 * (musicLines.front().spacing / 15.0f) + textSize.height / 2),
                             cv::FONT_HERSHEY_SIMPLEX,
@@ -193,15 +207,17 @@ void stepApp(cv::Mat& img)
                            (55 + 200 * currentNoteAnimation.getStageCos(0, true)) * startupAnimation.getStageRamp()),
                    2);
 
+        auto* tNote = musicNote.convertToKey(musicLines[currentLine].notes[currentNote].data, tKey);
+        musicNote.keyedNoteName(buf, tNote, tKey);
         cv::Size textSize = cv::getTextSize(
-                musicLines[currentLine].notes[currentNote].data->name,
+                buf,
                 cv::FONT_HERSHEY_SIMPLEX,
                 musicLines.front().spacing / 15.0f,
                 2,
                 NULL);
 
         cv::putText(draw,
-                    musicLines[currentLine].notes[currentNote].data->name,
+                    buf,
                     cv::Point(musicLines[currentLine].notes[currentNote].position.x - textSize.width / 2,
                               musicLines[currentLine].notes[currentNote].position.y - 50 * (musicLines.front().spacing / 15.0f) + textSize.height / 2),
                     cv::FONT_HERSHEY_SIMPLEX,
@@ -265,11 +281,16 @@ void stepApp(cv::Mat& img)
     auto* note = AudioAnalyzer::getCurrentNote();
     if (note && currentLine != -1)
     {
-        if (note->midi == musicLines[currentLine].notes[currentNote].data->midi)
+        auto* tNote = musicNote.convertToKey(musicLines[currentLine].notes[currentNote].data, tKey);
+        if (detectNote.isReady(false) && note->midi == tNote->midi)
         {
             nextNote(musicLines);
             if (currentLine != -1)
-                AudioAnalyzer::playNote(musicLines[currentLine].notes[currentNote].data);
+            {
+                tNote = musicNote.convertToKey(musicLines[currentLine].notes[currentNote].data, tKey);
+                AudioAnalyzer::playNote(tNote);
+                detectNote.reset();
+            }
         }
     }
 

@@ -83,8 +83,6 @@ bool Rate::isReady(bool roll)
     if (time > _inverseRate + _last)
     {
         if (roll)
-            _last = time - (time - _last) % _inverseRate;
-        else
             reset();
         return true;
     }

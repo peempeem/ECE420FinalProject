@@ -117,3 +117,10 @@ Java_com_example_ece420finalproject_MainActivity_stepPlayback(JNIEnv* env, jobje
     stepApp(img);
     AndroidBitmap_unlockPixels(env, bitmap);
 }
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_example_ece420finalproject_MainActivity_transpose(JNIEnv* env, jobject ob, jint transNumber)
+{
+    transpose(transNumber);
+}
