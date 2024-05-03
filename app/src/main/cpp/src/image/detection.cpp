@@ -333,15 +333,16 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
             musicLines.front().spacing,
             musicLines.front().spacing * 7.2295f,
             musicLines.front().spacing * 3.5245f,
-            musicLines.front().spacing / 15.0f,         // TODO
-            musicLines.front().spacing / 10.0f          // TODO
+            musicLines.front().spacing * 3.9696f,
+            musicLines.front().spacing * 4.84313f
     };
+    LOGD(TAG, "spacing: %f", musicLines.front().spacing);
     std::vector<unsigned> thresholds = {
-            (unsigned) (objPointCounts[0] * sqrtf(musicLines.front().spacing) / 10),
-            (unsigned) (objPointCounts[1] * sqrtf(musicLines.front().spacing) / 30),
-            (unsigned) (objPointCounts[2] * sqrtf(musicLines.front().spacing) / 20),
-            (unsigned) (objPointCounts[3] * sqrtf(musicLines.front().spacing) / 15),
-            (unsigned) (objPointCounts[4] * sqrtf(musicLines.front().spacing) / 15)
+                (unsigned) (objPointCounts[0] * sqrtf(musicLines.front().spacing) / 10),
+                (unsigned) (objPointCounts[1] * sqrtf(musicLines.front().spacing) / 30),
+                (unsigned) (objPointCounts[2] * sqrtf(musicLines.front().spacing) / 25),
+                (unsigned) (objPointCounts[3] * sqrtf(musicLines.front().spacing) / 15),
+                (unsigned) (objPointCounts[4] * sqrtf(musicLines.front().spacing) / 15)
     };
 
     Matrix2D<uint8_t> matFromImg(img);
@@ -501,6 +502,11 @@ bool Detection::scan(cv::Mat& img, std::vector<Music>& musicLines)
         else
             musicLines[i].clef = Music::Unknown;
     }
+
+    auto sharpPeaks = scans[3].peaks(thresholds[3], 4, 4);
+    auto flatPeaks = scans[4].peaks(thresholds[4], 4, 4);
+    LOGD(TAG, "sharp peaks: %u", (unsigned) sharpPeaks.size());
+    LOGD(TAG, "flat peaks: %u", (unsigned) sharpPeaks.size());
 
     auto notePeaks = scans[0].peaks(thresholds[0], 16, 16);
     LOGD(TAG, "note peaks: %u", (unsigned) notePeaks.size());

@@ -1,6 +1,7 @@
 package com.example.ece420finalproject;
 
 import org.opencv.android.OpenCVLoader;
+import org.w3c.dom.Text;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -16,6 +17,7 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.SeekBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -55,6 +57,8 @@ public class MainActivity extends AppCompatActivity {
     private Button startPlayback;
     private Button restartPlayback;
     private Button calibrateCamera;
+    private TextView detectedKeyText;
+    private TextView transposedKeyText;
 
     private enum DisplayState {
         PREROLLING,
@@ -78,6 +82,8 @@ public class MainActivity extends AppCompatActivity {
     private native void restartPlayback();
     private native void stepPlayback(Bitmap bitmap);
     private native void transpose(int transNumber);
+    private native String detectedKey();
+    private native String transposedKey();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -98,6 +104,9 @@ public class MainActivity extends AppCompatActivity {
         startPlayback = findViewById(R.id.startPlayback);
         restartPlayback = findViewById(R.id.restartPlayback);
         calibrateCamera = findViewById(R.id.calibrateCamera);
+
+        detectedKeyText = findViewById(R.id.detectedKeyText);
+        transposedKeyText = findViewById(R.id.transposedKeyText);
 
         capture.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -139,6 +148,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 transpose(progress - 6);
+                transposedKeyText.setText(transposedKey());
             }
 
             @Override
@@ -246,6 +256,24 @@ public class MainActivity extends AppCompatActivity {
                         if (displayState == DisplayState.APP1)
                         {
                             restartPlayback();
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (!detectedKey().equals("None")) {
+                                        detectedKeyText.setText(detectedKey());
+                                        detectedKeyText.setTextColor(getResources().getColor(R.color.green));
+                                        transposedKeyText.setText(transposedKey());
+                                        transposedKeyText.setTextColor(getResources().getColor(R.color.green));
+                                    }
+                                    else {
+                                        detectedKeyText.setText("None");
+                                        detectedKeyText.setTextColor(getResources().getColor(R.color.red));
+                                        transposedKeyText.setText("None");
+                                        transposedKeyText.setTextColor(getResources().getColor(R.color.red));
+                                    }
+
+                                }
+                            });
                             displayState = DisplayState.APP2;
                         }
                         if (displayState == DisplayState.APP2) {

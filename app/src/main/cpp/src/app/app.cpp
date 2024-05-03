@@ -10,28 +10,12 @@ static Rate currentNoteAnimation(1.5);
 static Rate detectNote(1);
 static int currentLine;
 static int currentNote;
-static bool validMusicLines;
+static bool validMusicLines = false;
 static Rate badStartA;
 static Rate badStartE;
 static int transposeNumber = 0;
 static char buf[20];
 static MusicNote::Key tKey = MusicNote::C_MAJOR;
-
-void restartApp()
-{
-    startupAnimation.setHertz(1);
-    currentLine = -1;
-    detectNote.reset();
-    badStartA.setMs(600);
-    badStartE.setMs(300);
-    newAlloc = true;
-}
-
-void transpose(int transNumber)
-{
-    transposeNumber = transNumber;
-    tKey = musicNote.transposeKey(MusicNote::C_MAJOR, transposeNumber);
-}
 
 bool nextNote(std::vector<Detection::Music>& musicLines)
 {
@@ -63,6 +47,50 @@ bool nextNote(std::vector<Detection::Music>& musicLines)
     return true;
 }
 
+void restartApp()
+{
+    startupAnimation.setHertz(1);
+    currentLine = -1;
+    detectNote.reset();
+    badStartA.setMs(600);
+    badStartE.setMs(300);
+
+    auto& musicLines = ImageAnalysis::getMusicLines();
+    nextNote(musicLines);
+
+    if (currentLine != -1)
+    {
+        auto* tNote = musicNote.convertToKey(musicLines[currentLine].notes[currentNote].data, tKey);
+        AudioAnalyzer::playNote(tNote);
+        validMusicLines = true;
+    }
+    else
+        validMusicLines = false;
+
+    newAlloc = true;
+}
+
+void transpose(int transNumber)
+{
+    transposeNumber = transNumber;
+    tKey = musicNote.transposeKey(MusicNote::C_MAJOR, transposeNumber);
+}
+
+const char* getDetectedKey()
+{
+    if (validMusicLines)
+        return musicNote.keyToName(MusicNote::C_MAJOR);
+    else
+        return "None";
+}
+
+const char* getTransposedKey()
+{
+    if (validMusicLines)
+        return musicNote.keyToName(musicNote.transposeKey(MusicNote::C_MAJOR, transposeNumber));
+    return "None";
+}
+
 void overlayImage(cv::Mat& src, cv::Mat& overlay)
 {
     for (unsigned y = 0; y < src.rows; ++y)
@@ -92,16 +120,6 @@ void stepApp(cv::Mat& img)
     if (newAlloc)
     {
         draw = cv::Mat::zeros(img.rows, img.cols, CV_8UC4);
-        nextNote(musicLines);
-
-        if (currentLine != -1)
-        {
-            auto* tNote = musicNote.convertToKey(musicLines[currentLine].notes[currentNote].data, tKey);
-            AudioAnalyzer::playNote(tNote);
-            validMusicLines = true;
-        }
-        else
-            validMusicLines = false;
         newAlloc = false;
     }
     else
@@ -252,7 +270,6 @@ void stepApp(cv::Mat& img)
                             255,
                             255 * startupAnimation.getStageRamp()),
                     3);
-        LOGD(TAG, "%f", startupAnimation.getStageRamp());
     }
     else if (currentLine == -1)
     {

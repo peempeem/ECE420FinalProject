@@ -124,3 +124,17 @@ Java_com_example_ece420finalproject_MainActivity_transpose(JNIEnv* env, jobject 
 {
     transpose(transNumber);
 }
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_example_ece420finalproject_MainActivity_detectedKey(JNIEnv* env, jobject ob)
+{
+    return env->NewStringUTF(getDetectedKey());
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_example_ece420finalproject_MainActivity_transposedKey(JNIEnv* env, jobject ob)
+{
+    return env->NewStringUTF(getTransposedKey());
+}

@@ -156,10 +156,10 @@ const MusicNote::Data* MusicNote::fromFrequency(float frequency)
 
 MusicNote::Key MusicNote::transposeKey(Key key, int transpose)
 {
-    int newKey = (((int) key) + transpose * 5);
-    if (newKey > 0)
+    int newKey = (((int) key) - transpose * 5);
+    if (newKey >= 0)
         return (Key) (newKey % 12);
-    return (Key) (-newKey % 12);
+    return (Key) (12 + newKey % 12);
 }
 
 const MusicNote::Data* MusicNote::convertToKey(const Data* note, Key key)
