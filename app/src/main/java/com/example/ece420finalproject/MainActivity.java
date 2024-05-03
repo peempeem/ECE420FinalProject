@@ -54,7 +54,6 @@ public class MainActivity extends AppCompatActivity {
     private ImageView viewFinder;
     private SeekBar transpose;
     private Button capture;
-    private Button startPlayback;
     private Button restartPlayback;
     private Button calibrateCamera;
     private TextView detectedKeyText;
@@ -101,7 +100,6 @@ public class MainActivity extends AppCompatActivity {
 
         transpose = findViewById(R.id.transpose);
         capture = findViewById(R.id.captureButton);
-        startPlayback = findViewById(R.id.startPlayback);
         restartPlayback = findViewById(R.id.restartPlayback);
         calibrateCamera = findViewById(R.id.calibrateCamera);
 
